@@ -1,5 +1,6 @@
 tmp/
 logs/
+build/
 setenv.sh
 *.rbxl
 *.rbxlx
