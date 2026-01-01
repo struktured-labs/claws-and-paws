@@ -1,0 +1,486 @@
+--[[
+    Claws & Paws - Client Entry Point
+    Handles UI, input, and local game rendering
+]]
+
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+
+local Shared = require(ReplicatedStorage.Shared)
+local Constants = Shared.Constants
+
+local LocalPlayer = Players.LocalPlayer
+
+-- Wait for remotes
+local Remotes = ReplicatedStorage:WaitForChild("Remotes")
+local RequestMatchEvent = Remotes:WaitForChild("RequestMatch")
+local CancelMatchEvent = Remotes:WaitForChild("CancelMatch")
+local MakeMoveEvent = Remotes:WaitForChild("MakeMove")
+local ResignEvent = Remotes:WaitForChild("Resign")
+local SendGestureEvent = Remotes:WaitForChild("SendGesture")
+local RequestAIGameEvent = Remotes:WaitForChild("RequestAIGame")
+local GetGameStateFunction = Remotes:WaitForChild("GetGameState")
+
+-- Client state
+local ClientState = {
+    currentGameId = nil,
+    gameState = nil,
+    selectedSquare = nil,
+    validMoves = {},
+    playerColor = nil,
+    isMyTurn = false,
+}
+
+-- Board visual settings
+local BoardConfig = {
+    squareSize = 4,
+    lightColor = Color3.fromRGB(240, 217, 181),
+    darkColor = Color3.fromRGB(181, 136, 99),
+    highlightColor = Color3.fromRGB(255, 255, 100),
+    validMoveColor = Color3.fromRGB(100, 255, 100),
+    lastMoveColor = Color3.fromRGB(200, 200, 100),
+    checkColor = Color3.fromRGB(255, 100, 100),
+}
+
+-- Piece model references (to be replaced with actual assets)
+local PieceModels = {}
+
+-- Create the chess board
+local function createBoard()
+    local boardFolder = Instance.new("Folder")
+    boardFolder.Name = "ChessBoard"
+    boardFolder.Parent = workspace
+
+    local squares = {}
+
+    for row = 1, Constants.BOARD_SIZE do
+        squares[row] = {}
+        for col = 1, Constants.BOARD_SIZE do
+            local square = Instance.new("Part")
+            square.Name = string.format("Square_%d_%d", row, col)
+            square.Size = Vector3.new(BoardConfig.squareSize, 0.5, BoardConfig.squareSize)
+            square.Position = Vector3.new(
+                (col - 3.5) * BoardConfig.squareSize,
+                0.25,
+                (row - 3.5) * BoardConfig.squareSize
+            )
+            square.Anchored = true
+            square.CanCollide = true
+
+            -- Checkerboard pattern
+            if (row + col) % 2 == 0 then
+                square.Color = BoardConfig.lightColor
+            else
+                square.Color = BoardConfig.darkColor
+            end
+
+            -- Store row/col for click detection
+            square:SetAttribute("Row", row)
+            square:SetAttribute("Col", col)
+
+            square.Parent = boardFolder
+            squares[row][col] = square
+        end
+    end
+
+    return boardFolder, squares
+end
+
+-- Create a piece model (placeholder)
+local function createPieceModel(pieceType, color)
+    local piece = Instance.new("Part")
+    piece.Shape = Enum.PartType.Cylinder
+    piece.Size = Vector3.new(1, 3, 3)
+    piece.Orientation = Vector3.new(0, 0, 90)
+    piece.Anchored = true
+    piece.CanCollide = false
+
+    -- Color based on team
+    if color == Constants.Color.WHITE then
+        piece.Color = Color3.fromRGB(255, 250, 240)
+    else
+        piece.Color = Color3.fromRGB(50, 50, 50)
+    end
+
+    -- Add label
+    local label = Instance.new("BillboardGui")
+    label.Size = UDim2.new(0, 100, 0, 50)
+    label.StudsOffset = Vector3.new(0, 2, 0)
+    label.AlwaysOnTop = true
+    label.Parent = piece
+
+    local textLabel = Instance.new("TextLabel")
+    textLabel.Size = UDim2.new(1, 0, 1, 0)
+    textLabel.BackgroundTransparency = 1
+    textLabel.TextColor3 = Color3.new(1, 1, 1)
+    textLabel.TextStrokeTransparency = 0
+    textLabel.Font = Enum.Font.GothamBold
+    textLabel.TextScaled = true
+    textLabel.Parent = label
+
+    -- Piece symbols
+    local symbols = {
+        [Constants.PieceType.KING] = "K",
+        [Constants.PieceType.QUEEN] = "Q",
+        [Constants.PieceType.ROOK] = "R",
+        [Constants.PieceType.BISHOP] = "B",
+        [Constants.PieceType.KNIGHT] = "N",
+        [Constants.PieceType.PAWN] = "P",
+    }
+    textLabel.Text = symbols[pieceType] or "?"
+
+    return piece
+end
+
+-- Update board visuals from game state
+local function updateBoardVisuals(boardFolder, squares, gameState)
+    -- Clear existing pieces
+    for _, child in ipairs(boardFolder:GetChildren()) do
+        if child.Name:sub(1, 5) == "Piece" then
+            child:Destroy()
+        end
+    end
+
+    if not gameState or not gameState.board then
+        return
+    end
+
+    -- Place pieces
+    for row = 1, Constants.BOARD_SIZE do
+        for col = 1, Constants.BOARD_SIZE do
+            local pieceData = gameState.board[row] and gameState.board[row][col]
+            if pieceData then
+                local pieceModel = createPieceModel(pieceData.type, pieceData.color)
+                pieceModel.Name = string.format("Piece_%d_%d", row, col)
+                pieceModel.Position = Vector3.new(
+                    (col - 3.5) * BoardConfig.squareSize,
+                    1.75,
+                    (row - 3.5) * BoardConfig.squareSize
+                )
+                pieceModel.Parent = boardFolder
+            end
+        end
+    end
+
+    -- Update square colors
+    for row = 1, Constants.BOARD_SIZE do
+        for col = 1, Constants.BOARD_SIZE do
+            local square = squares[row][col]
+            local baseColor = ((row + col) % 2 == 0) and BoardConfig.lightColor or BoardConfig.darkColor
+            square.Color = baseColor
+        end
+    end
+
+    -- Highlight selected square
+    if ClientState.selectedSquare then
+        local sq = squares[ClientState.selectedSquare.row][ClientState.selectedSquare.col]
+        sq.Color = BoardConfig.highlightColor
+    end
+
+    -- Highlight valid moves
+    for _, move in ipairs(ClientState.validMoves) do
+        local sq = squares[move.row][move.col]
+        sq.Color = BoardConfig.validMoveColor
+    end
+end
+
+-- Handle square click
+local function onSquareClicked(row, col, boardFolder, squares)
+    if not ClientState.gameState or ClientState.gameState.gameState ~= Constants.GameState.IN_PROGRESS then
+        return
+    end
+
+    if not ClientState.isMyTurn then
+        return
+    end
+
+    local pieceData = ClientState.gameState.board[row] and ClientState.gameState.board[row][col]
+
+    if ClientState.selectedSquare then
+        -- Check if this is a valid move
+        local isValidMove = false
+        for _, move in ipairs(ClientState.validMoves) do
+            if move.row == row and move.col == col then
+                isValidMove = true
+                break
+            end
+        end
+
+        if isValidMove then
+            -- Make the move
+            MakeMoveEvent:FireServer(
+                ClientState.currentGameId,
+                ClientState.selectedSquare.row,
+                ClientState.selectedSquare.col,
+                row,
+                col
+            )
+            ClientState.selectedSquare = nil
+            ClientState.validMoves = {}
+        elseif pieceData and pieceData.color == ClientState.playerColor then
+            -- Select new piece
+            ClientState.selectedSquare = {row = row, col = col}
+            -- Calculate valid moves locally for visual feedback
+            local engine = Shared.ChessEngine.new()
+            engine:deserialize(ClientState.gameState)
+            ClientState.validMoves = engine:getValidMoves(row, col)
+        else
+            -- Deselect
+            ClientState.selectedSquare = nil
+            ClientState.validMoves = {}
+        end
+    else
+        -- Select piece if it's ours
+        if pieceData and pieceData.color == ClientState.playerColor then
+            ClientState.selectedSquare = {row = row, col = col}
+            -- Calculate valid moves locally for visual feedback
+            local engine = Shared.ChessEngine.new()
+            engine:deserialize(ClientState.gameState)
+            ClientState.validMoves = engine:getValidMoves(row, col)
+        end
+    end
+
+    updateBoardVisuals(boardFolder, squares, ClientState.gameState)
+end
+
+-- Create main menu UI
+local function createMainMenu()
+    local screenGui = Instance.new("ScreenGui")
+    screenGui.Name = "MainMenu"
+    screenGui.ResetOnSpawn = false
+    screenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+
+    local frame = Instance.new("Frame")
+    frame.Name = "MenuFrame"
+    frame.Size = UDim2.new(0, 300, 0, 400)
+    frame.Position = UDim2.new(0.5, -150, 0.5, -200)
+    frame.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+    frame.BorderSizePixel = 0
+    frame.Parent = screenGui
+
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 10)
+    corner.Parent = frame
+
+    local title = Instance.new("TextLabel")
+    title.Name = "Title"
+    title.Size = UDim2.new(1, 0, 0, 60)
+    title.BackgroundTransparency = 1
+    title.Text = "Claws & Paws"
+    title.TextColor3 = Color3.new(1, 1, 1)
+    title.Font = Enum.Font.GothamBold
+    title.TextSize = 32
+    title.Parent = frame
+
+    local subtitle = Instance.new("TextLabel")
+    subtitle.Name = "Subtitle"
+    subtitle.Size = UDim2.new(1, 0, 0, 30)
+    subtitle.Position = UDim2.new(0, 0, 0, 50)
+    subtitle.BackgroundTransparency = 1
+    subtitle.Text = "Cat Chess Battle!"
+    subtitle.TextColor3 = Color3.fromRGB(200, 200, 200)
+    subtitle.Font = Enum.Font.Gotham
+    subtitle.TextSize = 18
+    subtitle.Parent = frame
+
+    local buttonY = 100
+    local buttons = {
+        {text = "Play vs AI (Easy)", mode = Constants.GameMode.AI_EASY},
+        {text = "Play vs AI (Medium)", mode = Constants.GameMode.AI_MEDIUM},
+        {text = "Play vs AI (Hard)", mode = Constants.GameMode.AI_HARD},
+        {text = "Play Casual", mode = Constants.GameMode.CASUAL},
+        {text = "Play Ranked", mode = Constants.GameMode.RANKED},
+    }
+
+    for _, btnData in ipairs(buttons) do
+        local button = Instance.new("TextButton")
+        button.Name = btnData.mode
+        button.Size = UDim2.new(0, 250, 0, 40)
+        button.Position = UDim2.new(0.5, -125, 0, buttonY)
+        button.BackgroundColor3 = Color3.fromRGB(80, 120, 200)
+        button.BorderSizePixel = 0
+        button.Text = btnData.text
+        button.TextColor3 = Color3.new(1, 1, 1)
+        button.Font = Enum.Font.GothamBold
+        button.TextSize = 18
+        button.Parent = frame
+
+        local btnCorner = Instance.new("UICorner")
+        btnCorner.CornerRadius = UDim.new(0, 5)
+        btnCorner.Parent = button
+
+        button.MouseButton1Click:Connect(function()
+            if btnData.mode:sub(1, 2) == "AI" then
+                RequestAIGameEvent:FireServer(btnData.mode)
+            else
+                RequestMatchEvent:FireServer(btnData.mode)
+            end
+            frame.Visible = false
+        end)
+
+        buttonY = buttonY + 50
+    end
+
+    return screenGui
+end
+
+-- Create game HUD
+local function createGameHUD()
+    local screenGui = Instance.new("ScreenGui")
+    screenGui.Name = "GameHUD"
+    screenGui.ResetOnSpawn = false
+    screenGui.Enabled = false
+    screenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+
+    -- Turn indicator
+    local turnLabel = Instance.new("TextLabel")
+    turnLabel.Name = "TurnLabel"
+    turnLabel.Size = UDim2.new(0, 300, 0, 50)
+    turnLabel.Position = UDim2.new(0.5, -150, 0, 20)
+    turnLabel.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+    turnLabel.BackgroundTransparency = 0.3
+    turnLabel.Text = "Waiting..."
+    turnLabel.TextColor3 = Color3.new(1, 1, 1)
+    turnLabel.Font = Enum.Font.GothamBold
+    turnLabel.TextSize = 24
+    turnLabel.Parent = screenGui
+
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 10)
+    corner.Parent = turnLabel
+
+    -- Resign button
+    local resignBtn = Instance.new("TextButton")
+    resignBtn.Name = "ResignButton"
+    resignBtn.Size = UDim2.new(0, 100, 0, 40)
+    resignBtn.Position = UDim2.new(1, -120, 1, -60)
+    resignBtn.BackgroundColor3 = Color3.fromRGB(200, 80, 80)
+    resignBtn.Text = "Resign"
+    resignBtn.TextColor3 = Color3.new(1, 1, 1)
+    resignBtn.Font = Enum.Font.GothamBold
+    resignBtn.TextSize = 18
+    resignBtn.Parent = screenGui
+
+    local resignCorner = Instance.new("UICorner")
+    resignCorner.CornerRadius = UDim.new(0, 5)
+    resignCorner.Parent = resignBtn
+
+    resignBtn.MouseButton1Click:Connect(function()
+        if ClientState.currentGameId then
+            ResignEvent:FireServer(ClientState.currentGameId)
+        end
+    end)
+
+    -- Gesture menu
+    local gestureFrame = Instance.new("Frame")
+    gestureFrame.Name = "GestureMenu"
+    gestureFrame.Size = UDim2.new(0, 300, 0, 50)
+    gestureFrame.Position = UDim2.new(0.5, -150, 1, -70)
+    gestureFrame.BackgroundTransparency = 1
+    gestureFrame.Parent = screenGui
+
+    local gestures = {"HappyMeow", "AngryHiss", "SlyGrin", "PawWave"}
+    local gestureEmojis = {
+        HappyMeow = ":3",
+        AngryHiss = ">:(",
+        SlyGrin = ";)",
+        PawWave = "o/",
+    }
+
+    for i, gesture in ipairs(gestures) do
+        local gestureBtn = Instance.new("TextButton")
+        gestureBtn.Name = gesture
+        gestureBtn.Size = UDim2.new(0, 60, 0, 40)
+        gestureBtn.Position = UDim2.new(0, (i - 1) * 70, 0, 0)
+        gestureBtn.BackgroundColor3 = Color3.fromRGB(80, 80, 120)
+        gestureBtn.Text = gestureEmojis[gesture]
+        gestureBtn.TextColor3 = Color3.new(1, 1, 1)
+        gestureBtn.Font = Enum.Font.GothamBold
+        gestureBtn.TextSize = 20
+        gestureBtn.Parent = gestureFrame
+
+        local gCorner = Instance.new("UICorner")
+        gCorner.CornerRadius = UDim.new(0, 5)
+        gCorner.Parent = gestureBtn
+
+        gestureBtn.MouseButton1Click:Connect(function()
+            if ClientState.currentGameId then
+                SendGestureEvent:FireServer(ClientState.currentGameId, gesture)
+            end
+        end)
+    end
+
+    return screenGui
+end
+
+-- Initialize client
+local function initialize()
+    local boardFolder, squares = createBoard()
+    local mainMenu = createMainMenu()
+    local gameHUD = createGameHUD()
+
+    -- Handle game state updates
+    GetGameStateFunction.OnClientInvoke = function(gameState)
+        ClientState.gameState = gameState
+        ClientState.currentGameId = gameState.gameId
+
+        -- Determine player color (white is always player1/first joiner)
+        -- For simplicity, assume white for now - server should send this
+        ClientState.playerColor = Constants.Color.WHITE
+        ClientState.isMyTurn = gameState.currentTurn == ClientState.playerColor
+
+        -- Update HUD
+        gameHUD.Enabled = true
+        local turnLabel = gameHUD:FindFirstChild("TurnLabel")
+        if turnLabel then
+            if gameState.gameState == Constants.GameState.IN_PROGRESS then
+                turnLabel.Text = ClientState.isMyTurn and "Your Turn!" or "Opponent's Turn"
+            elseif gameState.gameState == Constants.GameState.WHITE_WIN then
+                turnLabel.Text = ClientState.playerColor == Constants.Color.WHITE and "You Win!" or "You Lose!"
+            elseif gameState.gameState == Constants.GameState.BLACK_WIN then
+                turnLabel.Text = ClientState.playerColor == Constants.Color.BLACK and "You Win!" or "You Lose!"
+            elseif gameState.gameState == Constants.GameState.STALEMATE then
+                turnLabel.Text = "Stalemate!"
+            elseif gameState.gameState == Constants.GameState.DRAW then
+                turnLabel.Text = "Draw!"
+            end
+        end
+
+        updateBoardVisuals(boardFolder, squares, gameState)
+    end
+
+    -- Handle gesture received
+    SendGestureEvent.OnClientEvent:Connect(function(gesture)
+        -- Show gesture notification
+        print("Opponent gesture:", gesture)
+        -- TODO: Show visual gesture notification
+    end)
+
+    -- Handle clicks
+    UserInputService.InputBegan:Connect(function(input, processed)
+        if processed then return end
+
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            local camera = workspace.CurrentCamera
+            local ray = camera:ViewportPointToRay(input.Position.X, input.Position.Y)
+
+            local raycastParams = RaycastParams.new()
+            raycastParams.FilterType = Enum.RaycastFilterType.Include
+            raycastParams.FilterDescendantsInstances = {boardFolder}
+
+            local result = workspace:Raycast(ray.Origin, ray.Direction * 100, raycastParams)
+            if result and result.Instance then
+                local row = result.Instance:GetAttribute("Row")
+                local col = result.Instance:GetAttribute("Col")
+                if row and col then
+                    onSquareClicked(row, col, boardFolder, squares)
+                end
+            end
+        end
+    end)
+
+    print("Claws & Paws client initialized!")
+end
+
+initialize()

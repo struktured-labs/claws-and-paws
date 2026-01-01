@@ -1,0 +1,2 @@
+# Selene linting configuration for Roblox/Luau
+std = "roblox"

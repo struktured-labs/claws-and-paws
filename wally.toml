@@ -1,0 +1,9 @@
+[package]
+name = "struktured-labs/claws-and-paws"
+version = "0.1.0"
+registry = "https://github.com/UpliftGames/wally-index"
+realm = "shared"
+
+[dependencies]
+# Add dependencies here as needed
+# Promise = "evaera/promise@4.0.0"
