@@ -151,4 +151,7 @@ Constants.GameEndReason = {
     DISCONNECT = "Disconnect",
 }
 
+-- Test sync from Linux to Studio!
+print("🐱 Claws & Paws loaded! Meow! 🐾")
+
 return Constants

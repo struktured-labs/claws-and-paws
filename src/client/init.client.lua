@@ -9,6 +9,11 @@ local UserInputService = game:GetService("UserInputService")
 
 local Shared = require(ReplicatedStorage.Shared)
 local Constants = Shared.Constants
+local MusicManager = require(script.MusicManager)
+local ParticleEffects = require(script.ParticleEffects)
+local SoundManager = require(script.SoundManager)
+local BattleAnimations = require(script.BattleAnimations)
+local AssetLoader = require(script.AssetLoader)
 
 local LocalPlayer = Players.LocalPlayer
 
@@ -32,15 +37,16 @@ local ClientState = {
     isMyTurn = false,
 }
 
--- Board visual settings
+-- Board visual settings - Cat-themed!
 local BoardConfig = {
     squareSize = 4,
-    lightColor = Color3.fromRGB(240, 217, 181),
-    darkColor = Color3.fromRGB(181, 136, 99),
-    highlightColor = Color3.fromRGB(255, 255, 100),
-    validMoveColor = Color3.fromRGB(100, 255, 100),
-    lastMoveColor = Color3.fromRGB(200, 200, 100),
-    checkColor = Color3.fromRGB(255, 100, 100),
+    -- Cozy cat cafe vibes: cream and warm brown
+    lightColor = Color3.fromRGB(255, 245, 230), -- Cream (like Persian cat fur)
+    darkColor = Color3.fromRGB(139, 90, 60),    -- Warm brown (like tabby stripes)
+    highlightColor = Color3.fromRGB(255, 200, 100), -- Warm golden glow
+    validMoveColor = Color3.fromRGB(180, 255, 180), -- Soft mint (catnip vibes)
+    lastMoveColor = Color3.fromRGB(255, 220, 150),  -- Peachy highlight
+    checkColor = Color3.fromRGB(255, 120, 120),     -- Salmon pink (danger!)
 }
 
 -- Piece model references (to be replaced with actual assets)
@@ -68,12 +74,17 @@ local function createBoard()
             square.Anchored = true
             square.CanCollide = true
 
-            -- Checkerboard pattern
+            -- Checkerboard pattern with cat-themed polish
             if (row + col) % 2 == 0 then
                 square.Color = BoardConfig.lightColor
+                square.Material = Enum.Material.SmoothPlastic
             else
                 square.Color = BoardConfig.darkColor
+                square.Material = Enum.Material.Wood -- Scratching post vibes!
             end
+
+            -- Add subtle shine for that Nintendo polish
+            square.Reflectance = 0.1
 
             -- Store row/col for click detection
             square:SetAttribute("Row", row)
@@ -84,61 +95,73 @@ local function createBoard()
         end
     end
 
+    -- Add decorative border
+    local boardSize = Constants.BOARD_SIZE * BoardConfig.squareSize
+    local borderThickness = 1
+    local borderColor = Color3.fromRGB(101, 67, 33) -- Dark wood
+
+    local borderParts = {
+        {name = "North", size = Vector3.new(boardSize + borderThickness * 2, 0.5, borderThickness),
+         pos = Vector3.new(0, 0.25, -(boardSize/2 + borderThickness/2))},
+        {name = "South", size = Vector3.new(boardSize + borderThickness * 2, 0.5, borderThickness),
+         pos = Vector3.new(0, 0.25, boardSize/2 + borderThickness/2)},
+        {name = "East", size = Vector3.new(borderThickness, 0.5, boardSize),
+         pos = Vector3.new(boardSize/2 + borderThickness/2, 0.25, 0)},
+        {name = "West", size = Vector3.new(borderThickness, 0.5, boardSize),
+         pos = Vector3.new(-(boardSize/2 + borderThickness/2), 0.25, 0)},
+    }
+
+    for _, borderData in ipairs(borderParts) do
+        local border = Instance.new("Part")
+        border.Name = "Border_" .. borderData.name
+        border.Size = borderData.size
+        border.Position = borderData.pos
+        border.Color = borderColor
+        border.Material = Enum.Material.Wood
+        border.Anchored = true
+        border.CanCollide = false
+        border.Parent = boardFolder
+    end
+
     return boardFolder, squares
 end
 
--- Create a piece model (placeholder)
+-- Create a piece model using AssetLoader (tries 3D models, falls back to placeholders)
 local function createPieceModel(pieceType, color)
-    local piece = Instance.new("Part")
-    piece.Shape = Enum.PartType.Cylinder
-    piece.Size = Vector3.new(1, 3, 3)
-    piece.Orientation = Vector3.new(0, 0, 90)
-    piece.Anchored = true
-    piece.CanCollide = false
+    -- Load from AssetLoader (handles 3D models + fallback)
+    local piece = AssetLoader.loadPiece(pieceType, color)
 
-    -- Color based on team
-    if color == Constants.Color.WHITE then
-        piece.Color = Color3.fromRGB(255, 250, 240)
-    else
-        piece.Color = Color3.fromRGB(50, 50, 50)
+    -- Add paw print trail effect to the main part
+    local mainPart = piece
+    if piece:IsA("Model") then
+        mainPart = piece.PrimaryPart or piece:FindFirstChildWhichIsA("BasePart")
     end
 
-    -- Add label
-    local label = Instance.new("BillboardGui")
-    label.Size = UDim2.new(0, 100, 0, 50)
-    label.StudsOffset = Vector3.new(0, 2, 0)
-    label.AlwaysOnTop = true
-    label.Parent = piece
-
-    local textLabel = Instance.new("TextLabel")
-    textLabel.Size = UDim2.new(1, 0, 1, 0)
-    textLabel.BackgroundTransparency = 1
-    textLabel.TextColor3 = Color3.new(1, 1, 1)
-    textLabel.TextStrokeTransparency = 0
-    textLabel.Font = Enum.Font.GothamBold
-    textLabel.TextScaled = true
-    textLabel.Parent = label
-
-    -- Piece symbols
-    local symbols = {
-        [Constants.PieceType.KING] = "K",
-        [Constants.PieceType.QUEEN] = "Q",
-        [Constants.PieceType.ROOK] = "R",
-        [Constants.PieceType.BISHOP] = "B",
-        [Constants.PieceType.KNIGHT] = "N",
-        [Constants.PieceType.PAWN] = "P",
-    }
-    textLabel.Text = symbols[pieceType] or "?"
+    if mainPart and mainPart:IsA("BasePart") then
+        ParticleEffects.createPawPrints(mainPart)
+    end
 
     return piece
 end
 
 -- Update board visuals from game state
 local function updateBoardVisuals(boardFolder, squares, gameState)
-    -- Clear existing pieces
+    -- Clear existing pieces and effects
     for _, child in ipairs(boardFolder:GetChildren()) do
         if child.Name:sub(1, 5) == "Piece" then
             child:Destroy()
+        end
+    end
+
+    -- Clear all glows and sparkles from squares
+    for row = 1, Constants.BOARD_SIZE do
+        for col = 1, Constants.BOARD_SIZE do
+            local square = squares[row][col]
+            for _, child in ipairs(square:GetChildren()) do
+                if child:IsA("SurfaceLight") or child:IsA("Sparkles") then
+                    child:Destroy()
+                end
+            end
         end
     end
 
@@ -153,11 +176,20 @@ local function updateBoardVisuals(boardFolder, squares, gameState)
             if pieceData then
                 local pieceModel = createPieceModel(pieceData.type, pieceData.color)
                 pieceModel.Name = string.format("Piece_%d_%d", row, col)
-                pieceModel.Position = Vector3.new(
+
+                local targetPos = Vector3.new(
                     (col - 3.5) * BoardConfig.squareSize,
                     1.75,
                     (row - 3.5) * BoardConfig.squareSize
                 )
+
+                -- Handle both Part and Model positioning
+                if pieceModel:IsA("Model") then
+                    pieceModel:MoveTo(targetPos)
+                else
+                    pieceModel.Position = targetPos
+                end
+
                 pieceModel.Parent = boardFolder
             end
         end
@@ -172,16 +204,18 @@ local function updateBoardVisuals(boardFolder, squares, gameState)
         end
     end
 
-    -- Highlight selected square
+    -- Highlight selected square with sparkles!
     if ClientState.selectedSquare then
         local sq = squares[ClientState.selectedSquare.row][ClientState.selectedSquare.col]
         sq.Color = BoardConfig.highlightColor
+        ParticleEffects.createSparkles(sq)
     end
 
-    -- Highlight valid moves
+    -- Highlight valid moves with glow
     for _, move in ipairs(ClientState.validMoves) do
         local sq = squares[move.row][move.col]
         sq.Color = BoardConfig.validMoveColor
+        ParticleEffects.highlightSquare(sq, Color3.fromRGB(144, 238, 144))
     end
 end
 
@@ -208,6 +242,26 @@ local function onSquareClicked(row, col, boardFolder, squares)
         end
 
         if isValidMove then
+            -- Check if this is a capture
+            local targetPiece = ClientState.gameState.board[row] and ClientState.gameState.board[row][col]
+            local isCapture = targetPiece ~= nil
+
+            if isCapture then
+                -- Play capture sound and effect
+                SoundManager.playCaptureSound()
+                local targetPos = Vector3.new(
+                    (col - 3.5) * BoardConfig.squareSize,
+                    1.75,
+                    (row - 3.5) * BoardConfig.squareSize
+                )
+                ParticleEffects.captureExplosion(targetPos, targetPiece.color == Constants.Color.WHITE
+                    and Color3.fromRGB(255, 240, 220)
+                    or Color3.fromRGB(80, 60, 50))
+            else
+                -- Play move sound
+                SoundManager.playMoveSound(pieceData and pieceData.type)
+            end
+
             -- Make the move
             MakeMoveEvent:FireServer(
                 ClientState.currentGameId,
@@ -220,6 +274,7 @@ local function onSquareClicked(row, col, boardFolder, squares)
             ClientState.validMoves = {}
         elseif pieceData and pieceData.color == ClientState.playerColor then
             -- Select new piece
+            SoundManager.playSelectSound()
             ClientState.selectedSquare = {row = row, col = col}
             -- Calculate valid moves locally for visual feedback
             local engine = Shared.ChessEngine.new()
@@ -233,6 +288,7 @@ local function onSquareClicked(row, col, boardFolder, squares)
     else
         -- Select piece if it's ours
         if pieceData and pieceData.color == ClientState.playerColor then
+            SoundManager.playSelectSound()
             ClientState.selectedSquare = {row = row, col = col}
             -- Calculate valid moves locally for visual feedback
             local engine = Shared.ChessEngine.new()
