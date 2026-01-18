@@ -3,35 +3,64 @@
     Handles UI, input, and local game rendering
 ]]
 
+print("🐱 [DEBUG] Client script starting...")
+
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
 
+print("🐱 [DEBUG] Requiring Shared...")
 local Shared = require(ReplicatedStorage.Shared)
+print("🐱 [DEBUG] Shared loaded!")
 local Constants = Shared.Constants
+print("🐱 [DEBUG] Constants loaded!")
+print("🐱 [DEBUG] Requiring Logger...")
 local Logger = require(script.Logger)
+print("🐱 [DEBUG] Requiring MusicManager...")
 local MusicManager = require(script.MusicManager)
+print("🐱 [DEBUG] Requiring ParticleEffects...")
 local ParticleEffects = require(script.ParticleEffects)
+print("🐱 [DEBUG] Requiring SoundManager...")
 local SoundManager = require(script.SoundManager)
+print("🐱 [DEBUG] Requiring BattleAnimations...")
 local BattleAnimations = require(script.BattleAnimations)
+print("🐱 [DEBUG] Requiring AssetLoader...")
 local AssetLoader = require(script.AssetLoader)
+print("🐱 [DEBUG] Requiring TutorialManager...")
 local TutorialManager = require(script.TutorialManager)
+print("🐱 [DEBUG] Requiring CameraController...")
 local CameraController = require(script.CameraController)
+print("🐱 [DEBUG] All modules loaded!")
 
 -- Initialize logger first
+print("🐱 [DEBUG] Calling Logger.init()...")
 Logger.init()
+print("🐱 [DEBUG] Logger initialized!")
 
 local LocalPlayer = Players.LocalPlayer
 
--- Wait for remotes
-local Remotes = ReplicatedStorage:WaitForChild("Remotes")
+-- Wait for remotes (with timeouts to prevent hanging)
+print("🐱 [DEBUG] Waiting for Remotes folder...")
+local Remotes = ReplicatedStorage:WaitForChild("Remotes", 10)
+if not Remotes then
+    warn("🐱 [ERROR] Remotes folder not found!")
+    return
+end
+print("🐱 [DEBUG] Got Remotes! Waiting for events...")
 local RequestMatchEvent = Remotes:WaitForChild("RequestMatch")
+print("🐱 [DEBUG] Got RequestMatch")
 local CancelMatchEvent = Remotes:WaitForChild("CancelMatch")
+print("🐱 [DEBUG] Got CancelMatch")
 local MakeMoveEvent = Remotes:WaitForChild("MakeMove")
+print("🐱 [DEBUG] Got MakeMove")
 local ResignEvent = Remotes:WaitForChild("Resign")
+print("🐱 [DEBUG] Got Resign")
 local SendGestureEvent = Remotes:WaitForChild("SendGesture")
+print("🐱 [DEBUG] Got SendGesture")
 local RequestAIGameEvent = Remotes:WaitForChild("RequestAIGame")
+print("🐱 [DEBUG] Got RequestAIGame")
 local GetGameStateFunction = Remotes:WaitForChild("GetGameState")
+print("🐱 [DEBUG] Got GetGameState - all remotes loaded!")
 
 -- Client state
 local ClientState = {
@@ -647,41 +676,57 @@ end
 
 -- Initialize client
 local function initialize()
-    -- Hide player character and move spawn away from board
-    task.spawn(function()
-        local character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+    print("🐱 [DEBUG] initialize() starting...")
 
-        -- Move player far away from the board
-        if character:FindFirstChild("HumanoidRootPart") then
-            character.HumanoidRootPart.CFrame = CFrame.new(0, -100, 0) -- Below the board
-        end
+    -- Hide player character SYNCHRONOUSLY (not async) to ensure it happens first
+    print("🐱 [DEBUG] Waiting for character...")
+    local character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+    print("🐱 [DEBUG] Got character:", character.Name)
 
-        -- Make character invisible
-        for _, part in ipairs(character:GetDescendants()) do
-            if part:IsA("BasePart") or part:IsA("Decal") then
-                part.Transparency = 1
-            elseif part:IsA("Accessory") then
-                part:Destroy()
-            end
-        end
+    -- Move player to camera position instead of hiding
+    -- This way, the camera following the character will be at the right spot
+    local hrp = character:WaitForChild("HumanoidRootPart", 5)
+    if hrp then
+        print("🐱 [DEBUG] Moving character to camera viewing position")
+        -- Position character where we want camera to be, looking at board center
+        hrp.CFrame = CFrame.new(Vector3.new(0, 60, -50), Vector3.new(0, 0, 0))
+    end
 
-        -- Disable character movement
-        local humanoid = character:FindFirstChildOfClass("Humanoid")
-        if humanoid then
-            humanoid.WalkSpeed = 0
-            humanoid.JumpPower = 0
+    -- Make character invisible
+    print("🐱 [DEBUG] Making character invisible...")
+    for _, part in ipairs(character:GetDescendants()) do
+        if part:IsA("BasePart") or part:IsA("Decal") then
+            part.Transparency = 1
+        elseif part:IsA("Accessory") then
+            part:Destroy()
         end
-    end)
+    end
+
+    -- Disable character movement
+    local humanoid = character:FindFirstChildOfClass("Humanoid")
+    if humanoid then
+        humanoid.WalkSpeed = 0
+        humanoid.JumpPower = 0
+    end
+
+    -- Camera setup handled by StarterPlayer properties and CameraController
+    print("🐱 [DEBUG] Camera setup done via StarterPlayer")
 
     -- Remove spawn location if it exists
+    print("🐱 [DEBUG] Looking for SpawnLocation...")
     local spawnLocation = workspace:FindFirstChild("SpawnLocation")
     if spawnLocation then
+        print("🐱 [DEBUG] Found SpawnLocation, destroying it")
         spawnLocation:Destroy()
+    else
+        print("🐱 [DEBUG] No SpawnLocation found")
     end
 
     -- Remove any default baseplate
+    print("🐱 [DEBUG] Looking for Baseplate...")
     local baseplate = workspace:FindFirstChild("Baseplate")
     if baseplate then
+        print("🐱 [DEBUG] Found Baseplate, making invisible")
         baseplate.Transparency = 1 -- Make invisible instead of deleting
     end
 
@@ -689,20 +734,27 @@ local function initialize()
     CameraController.setupGameCamera()
     CameraController.enableCameraRotation()
 
+    print("🐱 [DEBUG] Creating board...")
     local boardFolder, squares = createBoard()
+    print("🐱 [DEBUG] Board created! Creating menu...")
     local mainMenu = createMainMenu()
+    print("🐱 [DEBUG] Menu created! Creating HUD...")
     local gameHUD = createGameHUD()
+    print("🐱 [DEBUG] HUD created!")
 
     -- Create help button
     TutorialManager.createHelpButton()
 
+    -- TEMPORARILY DISABLED for debugging
     -- Show tutorial after brief delay
-    task.delay(2, function()
-        TutorialManager.showInitialTutorial()
-    end)
+    -- task.delay(2, function()
+    --     TutorialManager.showInitialTutorial()
+    -- end)
+    print("🐱 [DEBUG] Tutorial disabled for testing")
 
     -- Handle game state updates
     GetGameStateFunction.OnClientInvoke = function(gameState)
+        print("🐱 [DEBUG] Received game state from server!")
         ClientState.gameState = gameState
         ClientState.currentGameId = gameState.gameId
 
@@ -711,7 +763,11 @@ local function initialize()
         ClientState.playerColor = Constants.Color.WHITE
         ClientState.isMyTurn = gameState.currentTurn == ClientState.playerColor
 
-        -- Update HUD
+        -- Update HUD (with nil check)
+        if not gameHUD then
+            warn("🐱 [ERROR] gameHUD is nil!")
+            return
+        end
         gameHUD.Enabled = true
         local turnLabel = gameHUD:FindFirstChild("TurnLabel")
         if turnLabel then
@@ -862,4 +918,6 @@ local function initialize()
     print("🐱 Claws & Paws client initialized! Meow!")
 end
 
+print("🐱 [DEBUG] About to call initialize()...")
 initialize()
+print("🐱 [DEBUG] initialize() returned!")
