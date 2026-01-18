@@ -9,10 +9,15 @@ local logEvent = nil
 
 -- Initialize logger
 function Logger.init()
+    print("🐱 [DEBUG] Logger.init() starting...")
     local Remotes = ReplicatedStorage:WaitForChild("Remotes", 10)
+    print("🐱 [DEBUG] Logger: Got Remotes:", Remotes)
     if Remotes then
+        print("🐱 [DEBUG] Logger: Waiting for ClientLog...")
         logEvent = Remotes:WaitForChild("ClientLog", 5)
+        print("🐱 [DEBUG] Logger: Got ClientLog:", logEvent)
     end
+    print("🐱 [DEBUG] Logger.init() complete!")
 end
 
 -- Send log to server

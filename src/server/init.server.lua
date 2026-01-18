@@ -12,6 +12,13 @@ local ChessEngine = Shared.ChessEngine
 local ChessAI = Shared.ChessAI
 local LogCollector = require(script.LogCollector)
 
+-- Check if ChessAI loaded
+if ChessAI then
+    print("🐱 [SERVER] ChessAI loaded successfully!")
+else
+    warn("🐱 [SERVER] ChessAI is nil! AI games won't work.")
+end
+
 -- Initialize logging system
 LogCollector.init()
 
@@ -166,13 +173,17 @@ local function handleMove(player, gameId, fromRow, fromCol, toRow, toCol, promot
         -- AI response if playing against AI
         if session.isAI and session.engine.gameState == Constants.GameState.IN_PROGRESS then
             task.delay(0.5, function()
-                local aiMove = ChessAI.getBestMove(session.engine, session.aiDifficulty)
-                if aiMove then
-                    session.engine:makeMove(
-                        aiMove.from.row, aiMove.from.col,
-                        aiMove.to.row, aiMove.to.col
-                    )
-                    session:broadcastState()
+                if ChessAI and ChessAI.getBestMove then
+                    local aiMove = ChessAI.getBestMove(session.engine, session.aiDifficulty)
+                    if aiMove then
+                        session.engine:makeMove(
+                            aiMove.from.row, aiMove.from.col,
+                            aiMove.to.row, aiMove.to.col
+                        )
+                        session:broadcastState()
+                    end
+                else
+                    warn("🐱 [SERVER] ChessAI not available for AI move!")
                 end
             end)
         end

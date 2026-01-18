@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "rojo": {
+      "command": "node",
+      "args": ["/home/struktured/projects/claws-and-paws/mcp/rojo-server.js"],
+      "env": {}
+    }
+  }
+}

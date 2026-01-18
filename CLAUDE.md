@@ -230,9 +230,101 @@ Or publish directly from Studio after syncing with Rojo.
 
 ## Notes for Claude
 
-- User develops on Linux with RTX 3090, 3-monitor setup
-- Windows mini PC is for Studio testing only
-- Never suggest editing code in Studio
-- Always assume Rojo workflow for file syncing
-- User prefers automation over manual steps
-- Space is critical (office has 10+ computers already)
+**CRITICAL: Claude IS the Roblox developer.** The user is NOT a Roblox developer and will never be one. Claude must:
+- Own all Roblox/Luau development decisions
+- Debug and fix issues autonomously
+- Never ask the user to perform Roblox-specific tasks manually
+- Use automation for ALL testing and verification
+
+### Environment
+- Linux workstation (blackmage) with RTX 3090, 3-monitor setup
+- Windows mini PC (winmage at 192.168.1.200) runs Roblox Studio only
+- SSH access to winmage for remote control
+- Rojo syncs code from Linux to Studio in real-time
+
+### Development Philosophy
+- **Automation first**: Never ask user to click buttons or check things manually
+- **Self-verification**: Use logs, screenshots, and remote commands to verify state
+- **Proactive debugging**: Check logs automatically after each change
+- **Iterate autonomously**: Fix issues without waiting for user feedback
+
+## Automation Infrastructure
+
+### MCP Tools Available
+- `rojo` MCP server: Start/stop/restart Rojo server programmatically (see .mcp.json)
+
+### SSH Remote Control (winmage)
+```bash
+# Screenshot capture
+ssh -i ~/.ssh/winmage_key struk@192.168.1.200 "schtasks /run /tn 'CaptureScreen'"
+scp -i ~/.ssh/winmage_key struk@192.168.1.200:C:/Screenshots/screen.png ./tmp/
+
+# Game control
+ssh ... "schtasks /run /tn 'StopPlay'"   # Stop game (Shift+F5)
+ssh ... "schtasks /run /tn 'PressF5'"    # Start game (F5)
+
+# Check Roblox logs
+ssh ... "type C:\\Users\\struk\\AppData\\Local\\Roblox\\logs\\*.log"
+```
+
+### Log Locations
+- **Roblox Studio logs**: `C:\Users\struk\AppData\Local\Roblox\logs\` (on winmage)
+- **Rojo server log**: `/tmp/rojo.log` (on blackmage)
+- **Game debug output**: Look for `🐱` prefix in Roblox logs
+
+### Rojo Server Management
+- Must listen on `0.0.0.0` (not localhost) for Windows to connect
+- After restarting Rojo, Studio plugin needs to reconnect **manually**
+  - User must click Plugins → Rojo → Connect in Studio
+  - Cannot be automated via SSH (requires GUI interaction)
+  - Alternative: Don't restart Rojo unnecessarily - touch files to trigger sync instead
+- Check connection: `curl http://localhost:34872/api/rojo`
+- Check if Studio is connected: Look for HTTP activity in `/tmp/rojo.log`
+
+## Automation Permissions
+
+Claude can run the following commands without prompting:
+- Rojo commands: `rojo serve` (with any flags), `rojo build`, `pkill rojo`
+- SSH commands to winmage for screenshots and Studio control
+- Scheduled task execution: StopPlay, PressF5, CaptureScreen
+- Game restart cycles for testing
+- Log file reading and analysis
+- Process management (pgrep, pkill for rojo)
+
+## Known Issues & Solutions
+
+### WaitForChild Timeouts
+- **Problem**: `WaitForChild("RemoteName", 5)` returns nil if server hasn't created remotes yet
+- **Solution**: Remove timeout parameter to wait indefinitely: `WaitForChild("RemoteName")`
+- **Symptom**: 5-second gaps between "Got X" debug messages, then nil errors
+
+### Rojo Not Syncing
+- **Symptom**: Code changes not reflected in Studio
+- **Causes**:
+  1. Rojo listening on localhost only (use `--address 0.0.0.0`)
+  2. Studio plugin disconnected after server restart
+  3. Wrong session ID after restart
+- **Fix**: Restart Rojo with correct address, reconnect in Studio
+
+### Camera Not Working
+- **Symptom**: Default Roblox camera overrides scripted camera
+- **Solution**: Set StarterPlayer properties in default.project.json:
+  ```json
+  "StarterPlayer": {
+    "$properties": {
+      "CameraMaxZoomDistance": 100,
+      "CameraMinZoomDistance": 50,
+      "DevCameraOcclusionMode": "Invisicam"
+    }
+  }
+  ```
+
+## Debug Workflow
+
+1. Make code change
+2. Verify Rojo is syncing (check /tmp/rojo.log for activity)
+3. Restart game via SSH: `StopPlay` then `PressF5`
+4. Wait 8-10 seconds for game to load
+5. Check Roblox logs for errors: `grep "🐱\|Error:" <logfile>`
+6. If needed, capture screenshot to verify visual state
+7. Iterate until fixed

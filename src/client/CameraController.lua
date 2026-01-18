@@ -11,15 +11,17 @@ local CameraController = {}
 
 -- Set up camera for chess board viewing
 function CameraController.setupGameCamera()
+    print("🐱 [DEBUG] CameraController.setupGameCamera() called")
+
     local camera = workspace.CurrentCamera
-    camera.CameraType = Enum.CameraType.Scriptable
 
     -- Position camera above and angled toward board
-    -- Board center is at (0, 0, 0), size is 6x6 squares at 8 studs each = 48 studs
-    local cameraPosition = Vector3.new(0, 60, -50) -- Higher and farther back for bigger board
-    local lookAt = Vector3.new(0, 0, 0) -- Board center
+    local cameraPosition = Vector3.new(0, 60, -50)
+    local lookAt = Vector3.new(0, 0, 0)
 
+    camera.CameraType = Enum.CameraType.Scriptable
     camera.CFrame = CFrame.new(cameraPosition, lookAt)
+    print("🐱 [DEBUG] Camera positioned for board view")
 
     return camera
 end

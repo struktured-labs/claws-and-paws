@@ -16,6 +16,12 @@
     },
     "StarterPlayer": {
       "$className": "StarterPlayer",
+      "$properties": {
+        "CameraMaxZoomDistance": 100,
+        "CameraMinZoomDistance": 50,
+        "DevCameraOcclusionMode": "Invisicam",
+        "EnableMouseLockOption": false
+      },
       "StarterPlayerScripts": {
         "$className": "StarterPlayerScripts",
         "Client": {

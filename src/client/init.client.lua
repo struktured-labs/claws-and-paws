@@ -39,13 +39,10 @@ print("🐱 [DEBUG] Logger initialized!")
 
 local LocalPlayer = Players.LocalPlayer
 
--- Wait for remotes (with timeouts to prevent hanging)
+-- Wait for remotes (no timeout - wait forever for server to create them)
 print("🐱 [DEBUG] Waiting for Remotes folder...")
-local Remotes = ReplicatedStorage:WaitForChild("Remotes", 10)
-if not Remotes then
-    warn("🐱 [ERROR] Remotes folder not found!")
-    return
-end
+local Remotes = ReplicatedStorage:WaitForChild("Remotes")  -- Wait indefinitely
+print("🐱 [DEBUG] Remotes folder found!")
 print("🐱 [DEBUG] Got Remotes! Waiting for events...")
 local RequestMatchEvent = Remotes:WaitForChild("RequestMatch")
 print("🐱 [DEBUG] Got RequestMatch")
