@@ -79,7 +79,7 @@ end
 local function createPlaceholder(pieceType, color)
     local piece = Instance.new("Part")
     piece.Shape = Enum.PartType.Ball
-    piece.Size = Vector3.new(3, 3, 3)
+    piece.Size = Vector3.new(6, 6, 6) -- Bigger for bigger board (was 3x3x3)
     piece.Anchored = true
     piece.CanCollide = false
     piece.Material = Enum.Material.SmoothPlastic
@@ -93,10 +93,10 @@ local function createPlaceholder(pieceType, color)
         piece.Reflectance = 0.15
     end
 
-    -- Add emoji label
+    -- Add emoji label (bigger for bigger pieces)
     local label = Instance.new("BillboardGui")
-    label.Size = UDim2.new(0, 120, 0, 60)
-    label.StudsOffset = Vector3.new(0, 2.5, 0)
+    label.Size = UDim2.new(0, 240, 0, 120) -- Double size
+    label.StudsOffset = Vector3.new(0, 5, 0) -- Higher offset for bigger pieces
     label.AlwaysOnTop = true
     label.Parent = piece
 

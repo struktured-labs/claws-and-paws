@@ -15,8 +15,8 @@ function CameraController.setupGameCamera()
     camera.CameraType = Enum.CameraType.Scriptable
 
     -- Position camera above and angled toward board
-    -- Board center is at (0, 0, 0), size is 6x6 squares at 4 studs each = 24 studs
-    local cameraPosition = Vector3.new(0, 35, -25) -- Above and behind
+    -- Board center is at (0, 0, 0), size is 6x6 squares at 8 studs each = 48 studs
+    local cameraPosition = Vector3.new(0, 60, -50) -- Higher and farther back for bigger board
     local lookAt = Vector3.new(0, 0, 0) -- Board center
 
     camera.CFrame = CFrame.new(cameraPosition, lookAt)
@@ -32,7 +32,7 @@ function CameraController.enableCameraRotation()
     local rotating = false
     local lastMousePos = nil
     local currentAngle = 0
-    local currentHeight = 35
+    local currentHeight = 60 -- Match new camera height
 
     UserInputService.InputBegan:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton2 then
@@ -54,7 +54,7 @@ function CameraController.enableCameraRotation()
                 currentAngle = currentAngle + delta.X * 0.01
 
                 -- Update camera position
-                local radius = 25
+                local radius = 50 -- Bigger radius for bigger board
                 local x = math.sin(currentAngle) * radius
                 local z = math.cos(currentAngle) * radius
                 local pos = Vector3.new(x, currentHeight, z)
@@ -67,9 +67,9 @@ function CameraController.enableCameraRotation()
 
         -- Mouse wheel for zoom
         if input.UserInputType == Enum.UserInputType.MouseWheel then
-            currentHeight = math.clamp(currentHeight - input.Position.Z * 3, 20, 50)
+            currentHeight = math.clamp(currentHeight - input.Position.Z * 5, 40, 100)
 
-            local radius = 25
+            local radius = 50 -- Match new radius
             local x = math.sin(currentAngle) * radius
             local z = math.cos(currentAngle) * radius
             local pos = Vector3.new(x, currentHeight, z)

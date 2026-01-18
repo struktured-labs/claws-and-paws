@@ -43,7 +43,7 @@ local ClientState = {
 
 -- Board visual settings - Cat-themed!
 local BoardConfig = {
-    squareSize = 4,
+    squareSize = 8, -- BIGGER board (was 4)
     -- Cozy cat cafe vibes: cream and warm brown
     lightColor = Color3.fromRGB(255, 245, 230), -- Cream (like Persian cat fur)
     darkColor = Color3.fromRGB(139, 90, 60),    -- Warm brown (like tabby stripes)
@@ -101,7 +101,7 @@ local function createBoard()
 
     -- Add decorative border
     local boardSize = Constants.BOARD_SIZE * BoardConfig.squareSize
-    local borderThickness = 1
+    local borderThickness = 2 -- Thicker border for bigger board
     local borderColor = Color3.fromRGB(101, 67, 33) -- Dark wood
 
     local borderParts = {
@@ -183,7 +183,7 @@ local function updateBoardVisuals(boardFolder, squares, gameState)
 
                 local targetPos = Vector3.new(
                     (col - 3.5) * BoardConfig.squareSize,
-                    1.75,
+                    3.5, -- Higher for bigger pieces
                     (row - 3.5) * BoardConfig.squareSize
                 )
 
@@ -245,6 +245,8 @@ local function onSquareClicked(row, col, boardFolder, squares)
             end
         end
 
+        print(string.format("🎯 Clicked square [%d,%d], Valid move: %s", row, col, tostring(isValidMove)))
+
         if isValidMove then
             -- Check if this is a capture
             local targetPiece = ClientState.gameState.board[row] and ClientState.gameState.board[row][col]
@@ -255,7 +257,7 @@ local function onSquareClicked(row, col, boardFolder, squares)
                 SoundManager.playCaptureSound()
                 local targetPos = Vector3.new(
                     (col - 3.5) * BoardConfig.squareSize,
-                    1.75,
+                    3.5, -- Higher for bigger pieces
                     (row - 3.5) * BoardConfig.squareSize
                 )
                 ParticleEffects.captureExplosion(targetPos, targetPiece.color == Constants.Color.WHITE
@@ -267,6 +269,9 @@ local function onSquareClicked(row, col, boardFolder, squares)
             end
 
             -- Make the move
+            print(string.format("📤 Sending move: [%d,%d] → [%d,%d]",
+                ClientState.selectedSquare.row, ClientState.selectedSquare.col, row, col))
+
             MakeMoveEvent:FireServer(
                 ClientState.currentGameId,
                 ClientState.selectedSquare.row,
@@ -292,12 +297,16 @@ local function onSquareClicked(row, col, boardFolder, squares)
     else
         -- Select piece if it's ours
         if pieceData and pieceData.color == ClientState.playerColor then
+            print(string.format("✨ Selected piece at [%d,%d], type: %d", row, col, pieceData.type))
             SoundManager.playSelectSound()
             ClientState.selectedSquare = {row = row, col = col}
             -- Calculate valid moves locally for visual feedback
             local engine = Shared.ChessEngine.new()
             engine:deserialize(ClientState.gameState)
             ClientState.validMoves = engine:getValidMoves(row, col)
+            print(string.format("📋 Found %d valid moves", #ClientState.validMoves))
+        else
+            print(string.format("❌ Cannot select square [%d,%d] - not your piece or empty", row, col))
         end
     end
 
@@ -482,6 +491,44 @@ end
 
 -- Initialize client
 local function initialize()
+    -- Hide player character and move spawn away from board
+    task.spawn(function()
+        local character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+
+        -- Move player far away from the board
+        if character:FindFirstChild("HumanoidRootPart") then
+            character.HumanoidRootPart.CFrame = CFrame.new(0, -100, 0) -- Below the board
+        end
+
+        -- Make character invisible
+        for _, part in ipairs(character:GetDescendants()) do
+            if part:IsA("BasePart") or part:IsA("Decal") then
+                part.Transparency = 1
+            elseif part:IsA("Accessory") then
+                part:Destroy()
+            end
+        end
+
+        -- Disable character movement
+        local humanoid = character:FindFirstChildOfClass("Humanoid")
+        if humanoid then
+            humanoid.WalkSpeed = 0
+            humanoid.JumpPower = 0
+        end
+    end)
+
+    -- Remove spawn location if it exists
+    local spawnLocation = workspace:FindFirstChild("SpawnLocation")
+    if spawnLocation then
+        spawnLocation:Destroy()
+    end
+
+    -- Remove any default baseplate
+    local baseplate = workspace:FindFirstChild("Baseplate")
+    if baseplate then
+        baseplate.Transparency = 1 -- Make invisible instead of deleting
+    end
+
     -- Set up camera
     CameraController.setupGameCamera()
     CameraController.enableCameraRotation()
