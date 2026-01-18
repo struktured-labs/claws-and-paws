@@ -10,6 +10,10 @@ local Shared = require(ReplicatedStorage.Shared)
 local Constants = Shared.Constants
 local ChessEngine = Shared.ChessEngine
 local ChessAI = Shared.ChessAI
+local LogCollector = require(script.LogCollector)
+
+-- Initialize logging system
+LogCollector.init()
 
 -- Active games storage
 local ActiveGames = {}

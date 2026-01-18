@@ -9,6 +9,7 @@ local UserInputService = game:GetService("UserInputService")
 
 local Shared = require(ReplicatedStorage.Shared)
 local Constants = Shared.Constants
+local Logger = require(script.Logger)
 local MusicManager = require(script.MusicManager)
 local ParticleEffects = require(script.ParticleEffects)
 local SoundManager = require(script.SoundManager)
@@ -16,6 +17,9 @@ local BattleAnimations = require(script.BattleAnimations)
 local AssetLoader = require(script.AssetLoader)
 local TutorialManager = require(script.TutorialManager)
 local CameraController = require(script.CameraController)
+
+-- Initialize logger first
+Logger.init()
 
 local LocalPlayer = Players.LocalPlayer
 
@@ -245,7 +249,7 @@ local function onSquareClicked(row, col, boardFolder, squares)
             end
         end
 
-        print(string.format("🎯 Clicked square [%d,%d], Valid move: %s", row, col, tostring(isValidMove)))
+        Logger.debug(string.format("Clicked square [%d,%d], Valid move: %s", row, col, tostring(isValidMove)))
 
         if isValidMove then
             -- Check if this is a capture
@@ -269,7 +273,7 @@ local function onSquareClicked(row, col, boardFolder, squares)
             end
 
             -- Make the move
-            print(string.format("📤 Sending move: [%d,%d] → [%d,%d]",
+            Logger.info(string.format("Sending move: [%d,%d] → [%d,%d]",
                 ClientState.selectedSquare.row, ClientState.selectedSquare.col, row, col))
 
             MakeMoveEvent:FireServer(
@@ -297,16 +301,16 @@ local function onSquareClicked(row, col, boardFolder, squares)
     else
         -- Select piece if it's ours
         if pieceData and pieceData.color == ClientState.playerColor then
-            print(string.format("✨ Selected piece at [%d,%d], type: %d", row, col, pieceData.type))
+            Logger.info(string.format("Selected piece at [%d,%d], type: %d", row, col, pieceData.type))
             SoundManager.playSelectSound()
             ClientState.selectedSquare = {row = row, col = col}
             -- Calculate valid moves locally for visual feedback
             local engine = Shared.ChessEngine.new()
             engine:deserialize(ClientState.gameState)
             ClientState.validMoves = engine:getValidMoves(row, col)
-            print(string.format("📋 Found %d valid moves", #ClientState.validMoves))
+            Logger.debug(string.format("Found %d valid moves", #ClientState.validMoves))
         else
-            print(string.format("❌ Cannot select square [%d,%d] - not your piece or empty", row, col))
+            Logger.debug(string.format("Cannot select square [%d,%d] - not your piece or empty", row, col))
         end
     end
 
