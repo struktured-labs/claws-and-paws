@@ -14,6 +14,8 @@ local ParticleEffects = require(script.ParticleEffects)
 local SoundManager = require(script.SoundManager)
 local BattleAnimations = require(script.BattleAnimations)
 local AssetLoader = require(script.AssetLoader)
+local TutorialManager = require(script.TutorialManager)
+local CameraController = require(script.CameraController)
 
 local LocalPlayer = Players.LocalPlayer
 
@@ -35,6 +37,8 @@ local ClientState = {
     validMoves = {},
     playerColor = nil,
     isMyTurn = false,
+    hoveredSquare = nil,
+    hoverEffect = nil,
 }
 
 -- Board visual settings - Cat-themed!
@@ -323,21 +327,21 @@ local function createMainMenu()
     title.Name = "Title"
     title.Size = UDim2.new(1, 0, 0, 60)
     title.BackgroundTransparency = 1
-    title.Text = "Claws & Paws"
-    title.TextColor3 = Color3.new(1, 1, 1)
-    title.Font = Enum.Font.GothamBold
-    title.TextSize = 32
+    title.Text = "🐾 Claws & Paws"
+    title.TextColor3 = Color3.fromRGB(255, 200, 100)
+    title.Font = Enum.Font.FredokaOne
+    title.TextSize = 36
     title.Parent = frame
 
     local subtitle = Instance.new("TextLabel")
     subtitle.Name = "Subtitle"
     subtitle.Size = UDim2.new(1, 0, 0, 30)
-    subtitle.Position = UDim2.new(0, 0, 0, 50)
+    subtitle.Position = UDim2.new(0, 0, 0, 55)
     subtitle.BackgroundTransparency = 1
-    subtitle.Text = "Cat Chess Battle!"
+    subtitle.Text = "Cat Chess Battle! 🐱♟️"
     subtitle.TextColor3 = Color3.fromRGB(200, 200, 200)
     subtitle.Font = Enum.Font.Gotham
-    subtitle.TextSize = 18
+    subtitle.TextSize = 16
     subtitle.Parent = frame
 
     local buttonY = 100
@@ -389,22 +393,28 @@ local function createGameHUD()
     screenGui.Enabled = false
     screenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
 
-    -- Turn indicator
+    -- Turn indicator (bigger and more prominent)
     local turnLabel = Instance.new("TextLabel")
     turnLabel.Name = "TurnLabel"
-    turnLabel.Size = UDim2.new(0, 300, 0, 50)
-    turnLabel.Position = UDim2.new(0.5, -150, 0, 20)
+    turnLabel.Size = UDim2.new(0, 400, 0, 70)
+    turnLabel.Position = UDim2.new(0.5, -200, 0, 20)
     turnLabel.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
-    turnLabel.BackgroundTransparency = 0.3
-    turnLabel.Text = "Waiting..."
-    turnLabel.TextColor3 = Color3.new(1, 1, 1)
-    turnLabel.Font = Enum.Font.GothamBold
-    turnLabel.TextSize = 24
+    turnLabel.BackgroundTransparency = 0.2
+    turnLabel.Text = "⏳ Waiting for game..."
+    turnLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+    turnLabel.Font = Enum.Font.FredokaOne
+    turnLabel.TextSize = 32
     turnLabel.Parent = screenGui
 
     local corner = Instance.new("UICorner")
-    corner.CornerRadius = UDim.new(0, 10)
+    corner.CornerRadius = UDim.new(0, 15)
     corner.Parent = turnLabel
+
+    -- Add stroke for better visibility
+    local stroke = Instance.new("UIStroke")
+    stroke.Color = Color3.fromRGB(255, 200, 100)
+    stroke.Thickness = 3
+    stroke.Parent = turnLabel
 
     -- Resign button
     local resignBtn = Instance.new("TextButton")
@@ -472,9 +482,21 @@ end
 
 -- Initialize client
 local function initialize()
+    -- Set up camera
+    CameraController.setupGameCamera()
+    CameraController.enableCameraRotation()
+
     local boardFolder, squares = createBoard()
     local mainMenu = createMainMenu()
     local gameHUD = createGameHUD()
+
+    -- Create help button
+    TutorialManager.createHelpButton()
+
+    -- Show tutorial after brief delay
+    task.delay(2, function()
+        TutorialManager.showInitialTutorial()
+    end)
 
     -- Handle game state updates
     GetGameStateFunction.OnClientInvoke = function(gameState)
@@ -491,15 +513,35 @@ local function initialize()
         local turnLabel = gameHUD:FindFirstChild("TurnLabel")
         if turnLabel then
             if gameState.gameState == Constants.GameState.IN_PROGRESS then
-                turnLabel.Text = ClientState.isMyTurn and "Your Turn!" or "Opponent's Turn"
+                if ClientState.isMyTurn then
+                    turnLabel.Text = "✨ YOUR TURN - Click your piece!"
+                    turnLabel.TextColor3 = Color3.fromRGB(100, 255, 100) -- Green
+                    local stroke = turnLabel:FindFirstChild("UIStroke")
+                    if stroke then
+                        stroke.Color = Color3.fromRGB(100, 255, 100)
+                    end
+                else
+                    turnLabel.Text = "⏳ Opponent's Turn..."
+                    turnLabel.TextColor3 = Color3.fromRGB(255, 200, 100) -- Orange
+                    local stroke = turnLabel:FindFirstChild("UIStroke")
+                    if stroke then
+                        stroke.Color = Color3.fromRGB(255, 200, 100)
+                    end
+                end
             elseif gameState.gameState == Constants.GameState.WHITE_WIN then
-                turnLabel.Text = ClientState.playerColor == Constants.Color.WHITE and "You Win!" or "You Lose!"
+                local won = ClientState.playerColor == Constants.Color.WHITE
+                turnLabel.Text = won and "🎉 YOU WIN! 🎉" or "😿 You Lose..."
+                turnLabel.TextColor3 = won and Color3.fromRGB(255, 215, 0) or Color3.fromRGB(200, 100, 100)
             elseif gameState.gameState == Constants.GameState.BLACK_WIN then
-                turnLabel.Text = ClientState.playerColor == Constants.Color.BLACK and "You Win!" or "You Lose!"
+                local won = ClientState.playerColor == Constants.Color.BLACK
+                turnLabel.Text = won and "🎉 YOU WIN! 🎉" or "😿 You Lose..."
+                turnLabel.TextColor3 = won and Color3.fromRGB(255, 215, 0) or Color3.fromRGB(200, 100, 100)
             elseif gameState.gameState == Constants.GameState.STALEMATE then
-                turnLabel.Text = "Stalemate!"
+                turnLabel.Text = "😺 Stalemate - Draw!"
+                turnLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
             elseif gameState.gameState == Constants.GameState.DRAW then
-                turnLabel.Text = "Draw!"
+                turnLabel.Text = "😺 Draw!"
+                turnLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
             end
         end
 
@@ -536,7 +578,83 @@ local function initialize()
         end
     end)
 
-    print("Claws & Paws client initialized!")
+    -- Handle hover effects
+    local RunService = game:GetService("RunService")
+    RunService.RenderStepped:Connect(function()
+        if not ClientState.isMyTurn or not ClientState.gameState then
+            -- Clear hover effect
+            if ClientState.hoverEffect then
+                ClientState.hoverEffect:Destroy()
+                ClientState.hoverEffect = nil
+            end
+            ClientState.hoveredSquare = nil
+            return
+        end
+
+        local mouse = LocalPlayer:GetMouse()
+        local camera = workspace.CurrentCamera
+        local mousePos = UserInputService:GetMouseLocation()
+
+        local ray = camera:ViewportPointToRay(mousePos.X, mousePos.Y)
+        local raycastParams = RaycastParams.new()
+        raycastParams.FilterType = Enum.RaycastFilterType.Include
+        raycastParams.FilterDescendantsInstances = {boardFolder}
+
+        local result = workspace:Raycast(ray.Origin, ray.Direction * 100, raycastParams)
+
+        if result and result.Instance then
+            local row = result.Instance:GetAttribute("Row")
+            local col = result.Instance:GetAttribute("Col")
+
+            if row and col then
+                -- Check if this square has our piece
+                local pieceData = ClientState.gameState.board[row] and ClientState.gameState.board[row][col]
+                local isOurPiece = pieceData and pieceData.color == ClientState.playerColor
+
+                -- Only show hover on our pieces
+                if isOurPiece and (not ClientState.hoveredSquare or ClientState.hoveredSquare.row ~= row or ClientState.hoveredSquare.col ~= col) then
+                    ClientState.hoveredSquare = {row = row, col = col}
+
+                    -- Clear old hover effect
+                    if ClientState.hoverEffect then
+                        ClientState.hoverEffect:Destroy()
+                    end
+
+                    -- Add new hover effect
+                    local square = squares[row][col]
+                    local hoverGlow = Instance.new("SurfaceLight")
+                    hoverGlow.Name = "HoverGlow"
+                    hoverGlow.Color = Color3.fromRGB(255, 255, 150)
+                    hoverGlow.Brightness = 2
+                    hoverGlow.Range = 10
+                    hoverGlow.Face = Enum.NormalId.Top
+                    hoverGlow.Parent = square
+                    ClientState.hoverEffect = hoverGlow
+
+                    -- Change mouse icon
+                    mouse.Icon = "rbxasset://SystemCursors/PointingHand"
+                end
+            else
+                -- Not hovering over a square
+                ClientState.hoveredSquare = nil
+                if ClientState.hoverEffect then
+                    ClientState.hoverEffect:Destroy()
+                    ClientState.hoverEffect = nil
+                end
+                mouse.Icon = ""
+            end
+        else
+            -- Not hovering over board
+            ClientState.hoveredSquare = nil
+            if ClientState.hoverEffect then
+                ClientState.hoverEffect:Destroy()
+                ClientState.hoverEffect = nil
+            end
+            mouse.Icon = ""
+        end
+    end)
+
+    print("🐱 Claws & Paws client initialized! Meow!")
 end
 
 initialize()
