@@ -60,6 +60,138 @@ local BoardConfig = {
 -- Piece model references (to be replaced with actual assets)
 local PieceModels = {}
 
+-- Idle breathing animation for pieces
+local function startIdleAnimation(pieceModel)
+    local mainPart = pieceModel
+    local isModel = pieceModel:IsA("Model")
+
+    if isModel then
+        mainPart = pieceModel.PrimaryPart or pieceModel:FindFirstChildWhichIsA("BasePart")
+    end
+
+    if not mainPart or not mainPart:IsA("BasePart") then
+        return
+    end
+
+    local originalPos = mainPart.Position
+    local breatheHeight = 0.2
+    local breatheTime = 2
+
+    -- Create continuous bobbing animation (breathing)
+    local TweenService = game:GetService("TweenService")
+    local breatheInfo = TweenInfo.new(
+        breatheTime,
+        Enum.EasingStyle.Sine,
+        Enum.EasingDirection.InOut,
+        -1, -- Repeat infinitely
+        true -- Reverse
+    )
+
+    local breatheTween = TweenService:Create(mainPart, breatheInfo, {
+        Position = originalPos + Vector3.new(0, breatheHeight, 0)
+    })
+
+    breatheTween:Play()
+
+    -- If this is a model with parts, animate tail and ears too!
+    if isModel then
+        local tail = pieceModel:FindFirstChild("Tail")
+        if tail then
+            local tailOriginalOrientation = tail.Orientation
+            local tailWagInfo = TweenInfo.new(
+                0.5,
+                Enum.EasingStyle.Sine,
+                Enum.EasingDirection.InOut,
+                -1,
+                true
+            )
+            local tailWag = TweenService:Create(tail, tailWagInfo, {
+                Orientation = tailOriginalOrientation + Vector3.new(0, 15, 0)
+            })
+            tailWag:Play()
+        end
+
+        -- Ear twitch (randomized)
+        local leftEar = pieceModel:FindFirstChild("LeftEar")
+        local rightEar = pieceModel:FindFirstChild("RightEar")
+        if leftEar and rightEar then
+            task.spawn(function()
+                while pieceModel.Parent do
+                    task.wait(math.random(2, 5))
+                    -- Random ear twitch
+                    local earToTwitch = math.random(1, 2) == 1 and leftEar or rightEar
+                    local originalOrientation = earToTwitch.Orientation
+                    local twitchTween = TweenService:Create(earToTwitch, TweenInfo.new(0.1), {
+                        Orientation = originalOrientation + Vector3.new(0, 0, 20)
+                    })
+                    local returnTween = TweenService:Create(earToTwitch, TweenInfo.new(0.1), {
+                        Orientation = originalOrientation
+                    })
+                    twitchTween.Completed:Connect(function()
+                        returnTween:Play()
+                    end)
+                    twitchTween:Play()
+                end
+            end)
+        end
+    end
+
+    -- Store tween so we can cancel it later if needed
+    mainPart:SetAttribute("IdleTween", true)
+end
+
+-- Animate a move with proper battle animations
+local function animateMove(boardFolder, fromRow, fromCol, toRow, toCol, isCapture, pieceType, onComplete)
+    -- Find the moving piece
+    local pieceName = string.format("Piece_%d_%d", fromRow, fromCol)
+    local piece = boardFolder:FindFirstChild(pieceName)
+
+    if not piece then
+        if onComplete then onComplete() end
+        return
+    end
+
+    -- Get main part for animation
+    local mainPart = piece
+    if piece:IsA("Model") then
+        mainPart = piece.PrimaryPart or piece:FindFirstChildWhichIsA("BasePart")
+    end
+
+    if not mainPart then
+        if onComplete then onComplete() end
+        return
+    end
+
+    local fromPos = mainPart.Position
+    local toPos = Vector3.new(
+        (toCol - 3.5) * BoardConfig.squareSize,
+        3.5,
+        (toRow - 3.5) * BoardConfig.squareSize
+    )
+
+    -- If this is a capture, remove the target piece with animation
+    if isCapture then
+        local targetPieceName = string.format("Piece_%d_%d", toRow, toCol)
+        local targetPiece = boardFolder:FindFirstChild(targetPieceName)
+        if targetPiece then
+            local targetPart = targetPiece
+            if targetPiece:IsA("Model") then
+                targetPart = targetPiece.PrimaryPart or targetPiece:FindFirstChildWhichIsA("BasePart")
+            end
+
+            if targetPart then
+                BattleAnimations.fadeOutCapture(targetPart)
+            end
+        end
+
+        -- Use pounce animation for captures
+        BattleAnimations.pounceCapture(mainPart, fromPos, toPos, onComplete)
+    else
+        -- Use piece-specific animation for regular moves
+        BattleAnimations.smartMove(mainPart, fromPos, toPos, pieceType, onComplete)
+    end
+end
+
 -- Create the chess board
 local function createBoard()
     local boardFolder = Instance.new("Folder")
@@ -153,7 +285,7 @@ local function createPieceModel(pieceType, color)
 end
 
 -- Update board visuals from game state
-local function updateBoardVisuals(boardFolder, squares, gameState)
+local function updateBoardVisuals(boardFolder, squares, gameState, skipAnimation)
     -- Clear existing pieces and effects
     for _, child in ipairs(boardFolder:GetChildren()) do
         if child.Name:sub(1, 5) == "Piece" then
@@ -199,6 +331,15 @@ local function updateBoardVisuals(boardFolder, squares, gameState)
                 end
 
                 pieceModel.Parent = boardFolder
+
+                -- Add spawn animation for new pieces (but not initial setup)
+                if not skipAnimation and gameState.lastMove then
+                    local wasJustMoved = (gameState.lastMove.toRow == row and gameState.lastMove.toCol == col)
+                    if not wasJustMoved then
+                        -- Add subtle idle breathing animation
+                        startIdleAnimation(pieceModel)
+                    end
+                end
             end
         end
     end
@@ -256,33 +397,44 @@ local function onSquareClicked(row, col, boardFolder, squares)
             local targetPiece = ClientState.gameState.board[row] and ClientState.gameState.board[row][col]
             local isCapture = targetPiece ~= nil
 
-            if isCapture then
-                -- Play capture sound and effect
-                SoundManager.playCaptureSound()
-                local targetPos = Vector3.new(
-                    (col - 3.5) * BoardConfig.squareSize,
-                    3.5, -- Higher for bigger pieces
-                    (row - 3.5) * BoardConfig.squareSize
+            -- Get the moving piece type
+            local fromRow = ClientState.selectedSquare.row
+            local fromCol = ClientState.selectedSquare.col
+            local movingPiece = ClientState.gameState.board[fromRow] and ClientState.gameState.board[fromRow][fromCol]
+            local movingPieceType = movingPiece and movingPiece.type
+
+            -- Animate the move first
+            animateMove(boardFolder, fromRow, fromCol, row, col, isCapture, movingPieceType, function()
+                -- Animation complete - now update server
+                if isCapture then
+                    -- Play capture sound and effect
+                    SoundManager.playCaptureSound()
+                    local targetPos = Vector3.new(
+                        (col - 3.5) * BoardConfig.squareSize,
+                        3.5,
+                        (row - 3.5) * BoardConfig.squareSize
+                    )
+                    ParticleEffects.captureExplosion(targetPos, targetPiece.color == Constants.Color.WHITE
+                        and Color3.fromRGB(255, 240, 220)
+                        or Color3.fromRGB(80, 60, 50))
+                else
+                    -- Play move sound
+                    SoundManager.playMoveSound(pieceData and pieceData.type)
+                end
+
+                -- Make the move
+                Logger.info(string.format("Sending move: [%d,%d] → [%d,%d]",
+                    fromRow, fromCol, row, col))
+
+                MakeMoveEvent:FireServer(
+                    ClientState.currentGameId,
+                    fromRow,
+                    fromCol,
+                    row,
+                    col
                 )
-                ParticleEffects.captureExplosion(targetPos, targetPiece.color == Constants.Color.WHITE
-                    and Color3.fromRGB(255, 240, 220)
-                    or Color3.fromRGB(80, 60, 50))
-            else
-                -- Play move sound
-                SoundManager.playMoveSound(pieceData and pieceData.type)
-            end
+            end)
 
-            -- Make the move
-            Logger.info(string.format("Sending move: [%d,%d] → [%d,%d]",
-                ClientState.selectedSquare.row, ClientState.selectedSquare.col, row, col))
-
-            MakeMoveEvent:FireServer(
-                ClientState.currentGameId,
-                ClientState.selectedSquare.row,
-                ClientState.selectedSquare.col,
-                row,
-                col
-            )
             ClientState.selectedSquare = nil
             ClientState.validMoves = {}
         elseif pieceData and pieceData.color == ClientState.playerColor then
@@ -596,7 +748,9 @@ local function initialize()
             end
         end
 
-        updateBoardVisuals(boardFolder, squares, gameState)
+        -- Skip animations on initial game setup
+        local skipAnimation = ClientState.gameState == nil
+        updateBoardVisuals(boardFolder, squares, gameState, skipAnimation)
     end
 
     -- Handle gesture received
