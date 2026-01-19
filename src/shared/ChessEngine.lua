@@ -204,27 +204,18 @@ function ChessEngine:getPseudoLegalMoves(row, col)
     return moves
 end
 
--- Pawn moves
+-- Pawn moves (6x6 variant: pawns move only 1 square forward)
 function ChessEngine:getPawnMoves(row, col, color)
     local moves = {}
     local direction = (color == Constants.Color.WHITE) and 1 or -1
-    local startRow = (color == Constants.Color.WHITE) and 2 or 5
 
-    -- Forward move
+    -- Forward move (only 1 square)
     local newRow = row + direction
     if self:isOnBoard(newRow, col) and not self:getPiece(newRow, col) then
         table.insert(moves, {row = newRow, col = col})
-
-        -- Double move from starting position
-        if row == startRow then
-            local doubleRow = row + (2 * direction)
-            if not self:getPiece(doubleRow, col) then
-                table.insert(moves, {row = doubleRow, col = col})
-            end
-        end
     end
 
-    -- Captures
+    -- Diagonal captures
     for _, dc in ipairs({-1, 1}) do
         local captureCol = col + dc
         if self:isOnBoard(newRow, captureCol) then

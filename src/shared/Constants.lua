@@ -128,6 +128,20 @@ Constants.BoardTheme = {
     ANCIENT_EGYPT = "AncientEgypt",
 }
 
+-- Visual Style Options
+Constants.PieceStyle = {
+    CAT_3D = "Cat3D",           -- 3D cat models (default)
+    CAT_SIMPLE = "CatSimple",   -- Simplified cat shapes (current placeholders)
+    CHESS_CLASSIC = "ChessClassic", -- Traditional chess piece symbols
+    CHESS_MINIMAL = "ChessMinimal", -- Minimalist chess pieces
+}
+
+Constants.BoardView = {
+    PERSPECTIVE_3D = "Perspective3D", -- Default 3D angled view
+    TOP_DOWN_2D = "TopDown2D",        -- Flat 2D top-down view
+    SIDE_VIEW = "SideView",           -- Side perspective
+}
+
 -- Game states
 Constants.GameState = {
     WAITING = "Waiting",

@@ -9,19 +9,55 @@ local LocalPlayer = Players.LocalPlayer
 
 local CameraController = {}
 
--- Set up camera for chess board viewing
-function CameraController.setupGameCamera()
+-- Configuration
+CameraController.boardView = nil -- Will be set from Constants
+
+-- Set up camera for chess board viewing (uses current board view setting)
+function CameraController.setupGameCamera(boardView)
     local camera = workspace.CurrentCamera
     camera.CameraType = Enum.CameraType.Scriptable
 
-    -- Position camera above and angled toward board
+    -- Use provided view or fall back to stored view
+    if boardView then
+        CameraController.boardView = boardView
+    end
+
+    -- Load Constants for board view types
+    local ReplicatedStorage = game:GetService("ReplicatedStorage")
+    local Shared = require(ReplicatedStorage.Shared)
+    local Constants = Shared.Constants
+
+    local currentView = CameraController.boardView or Constants.BoardView.PERSPECTIVE_3D
+
     -- Board center is at (0, 0, 0), size is 6x6 squares at 8 studs each = 48 studs
-    local cameraPosition = Vector3.new(0, 60, -50) -- Higher and farther back for bigger board
+    local cameraPosition
     local lookAt = Vector3.new(0, 0, 0) -- Board center
+
+    if currentView == Constants.BoardView.TOP_DOWN_2D then
+        -- Pure top-down 2D view (directly above)
+        cameraPosition = Vector3.new(0, 80, 0)
+    elseif currentView == Constants.BoardView.SIDE_VIEW then
+        -- Side perspective view
+        cameraPosition = Vector3.new(60, 30, 0)
+    else
+        -- Default: Perspective 3D (angled)
+        cameraPosition = Vector3.new(0, 60, -50)
+    end
 
     camera.CFrame = CFrame.new(cameraPosition, lookAt)
 
     return camera
+end
+
+-- Set board view and update camera
+function CameraController.setBoardView(boardView)
+    CameraController.boardView = boardView
+    CameraController.setupGameCamera()
+end
+
+-- Get current board view
+function CameraController.getBoardView()
+    return CameraController.boardView
 end
 
 -- Allow camera rotation with right mouse

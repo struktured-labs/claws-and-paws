@@ -43,6 +43,9 @@ local ClientState = {
     isMyTurn = false,
     hoveredSquare = nil,
     hoverEffect = nil,
+    -- Visual settings
+    pieceStyle = Constants.PieceStyle.CAT_SIMPLE,
+    boardView = Constants.BoardView.PERSPECTIVE_3D,
 }
 
 -- Board visual settings - Cat-themed!
@@ -469,6 +472,175 @@ local function onSquareClicked(row, col, boardFolder, squares)
     updateBoardVisuals(boardFolder, squares, ClientState.gameState)
 end
 
+-- Create settings menu
+local function createSettingsMenu()
+    local screenGui = Instance.new("ScreenGui")
+    screenGui.Name = "SettingsMenu"
+    screenGui.ResetOnSpawn = false
+    screenGui.Enabled = false
+    screenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+
+    local frame = Instance.new("Frame")
+    frame.Name = "SettingsFrame"
+    frame.Size = UDim2.new(0, 400, 0, 500)
+    frame.Position = UDim2.new(0.5, -200, 0.5, -250)
+    frame.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+    frame.BorderSizePixel = 0
+    frame.Parent = screenGui
+
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 10)
+    corner.Parent = frame
+
+    local title = Instance.new("TextLabel")
+    title.Size = UDim2.new(1, 0, 0, 50)
+    title.BackgroundTransparency = 1
+    title.Text = "⚙️ Settings"
+    title.TextColor3 = Color3.fromRGB(255, 200, 100)
+    title.Font = Enum.Font.FredokaOne
+    title.TextSize = 32
+    title.Parent = frame
+
+    -- Piece Style Section
+    local pieceStyleLabel = Instance.new("TextLabel")
+    pieceStyleLabel.Size = UDim2.new(1, -40, 0, 30)
+    pieceStyleLabel.Position = UDim2.new(0, 20, 0, 70)
+    pieceStyleLabel.BackgroundTransparency = 1
+    pieceStyleLabel.Text = "Piece Style:"
+    pieceStyleLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+    pieceStyleLabel.Font = Enum.Font.GothamBold
+    pieceStyleLabel.TextSize = 18
+    pieceStyleLabel.TextXAlignment = Enum.TextXAlignment.Left
+    pieceStyleLabel.Parent = frame
+
+    local pieceStyles = {
+        {name = "Cat Models (Simple)", value = Constants.PieceStyle.CAT_SIMPLE},
+        {name = "Cat Models (3D)", value = Constants.PieceStyle.CAT_3D},
+        {name = "Chess Classic", value = Constants.PieceStyle.CHESS_CLASSIC},
+        {name = "Chess Minimal", value = Constants.PieceStyle.CHESS_MINIMAL},
+    }
+
+    for i, styleData in ipairs(pieceStyles) do
+        local btn = Instance.new("TextButton")
+        btn.Size = UDim2.new(0, 170, 0, 35)
+        btn.Position = UDim2.new(0, 20 + ((i - 1) % 2) * 190, 0, 100 + math.floor((i - 1) / 2) * 45)
+        btn.BackgroundColor3 = ClientState.pieceStyle == styleData.value
+            and Color3.fromRGB(100, 200, 100)
+            or Color3.fromRGB(80, 80, 100)
+        btn.Text = styleData.name
+        btn.TextColor3 = Color3.new(1, 1, 1)
+        btn.Font = Enum.Font.Gotham
+        btn.TextSize = 14
+        btn.Parent = frame
+
+        local btnCorner = Instance.new("UICorner")
+        btnCorner.CornerRadius = UDim.new(0, 5)
+        btnCorner.Parent = btn
+
+        btn.MouseButton1Click:Connect(function()
+            ClientState.pieceStyle = styleData.value
+            AssetLoader.setPieceStyle(styleData.value)
+            -- Refresh all buttons
+            for _, child in ipairs(frame:GetChildren()) do
+                if child:IsA("TextButton") and child.Name ~= "CloseButton" then
+                    local isSelected = false
+                    for _, ps in ipairs(pieceStyles) do
+                        if child.Text == ps.name and ClientState.pieceStyle == ps.value then
+                            isSelected = true
+                            break
+                        end
+                    end
+                    child.BackgroundColor3 = isSelected
+                        and Color3.fromRGB(100, 200, 100)
+                        or Color3.fromRGB(80, 80, 100)
+                end
+            end
+        end)
+    end
+
+    -- Board View Section
+    local boardViewLabel = Instance.new("TextLabel")
+    boardViewLabel.Size = UDim2.new(1, -40, 0, 30)
+    boardViewLabel.Position = UDim2.new(0, 20, 0, 220)
+    boardViewLabel.BackgroundTransparency = 1
+    boardViewLabel.Text = "Board View:"
+    boardViewLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+    boardViewLabel.Font = Enum.Font.GothamBold
+    boardViewLabel.TextSize = 18
+    boardViewLabel.TextXAlignment = Enum.TextXAlignment.Left
+    boardViewLabel.Parent = frame
+
+    local boardViews = {
+        {name = "3D Perspective", value = Constants.BoardView.PERSPECTIVE_3D},
+        {name = "2D Top-Down", value = Constants.BoardView.TOP_DOWN_2D},
+        {name = "Side View", value = Constants.BoardView.SIDE_VIEW},
+    }
+
+    for i, viewData in ipairs(boardViews) do
+        local btn = Instance.new("TextButton")
+        btn.Size = UDim2.new(0, 110, 0, 35)
+        btn.Position = UDim2.new(0, 20 + (i - 1) * 120, 0, 250)
+        btn.BackgroundColor3 = ClientState.boardView == viewData.value
+            and Color3.fromRGB(100, 200, 100)
+            or Color3.fromRGB(80, 80, 100)
+        btn.Text = viewData.name
+        btn.TextColor3 = Color3.new(1, 1, 1)
+        btn.Font = Enum.Font.Gotham
+        btn.TextSize = 14
+        btn.Parent = frame
+
+        local btnCorner = Instance.new("UICorner")
+        btnCorner.CornerRadius = UDim.new(0, 5)
+        btnCorner.Parent = btn
+
+        btn.MouseButton1Click:Connect(function()
+            ClientState.boardView = viewData.value
+            CameraController.setBoardView(viewData.value)
+            -- Refresh all buttons
+            for _, child in ipairs(frame:GetChildren()) do
+                if child:IsA("TextButton") and child.Name ~= "CloseButton" then
+                    local isSelected = false
+                    for _, bv in ipairs(boardViews) do
+                        if child.Text == bv.name and ClientState.boardView == bv.value then
+                            isSelected = true
+                            break
+                        end
+                    end
+                    if child.Text == viewData.name or child.Text == pieceStyles[1].name or child.Text == pieceStyles[2].name or child.Text == pieceStyles[3].name or child.Text == pieceStyles[4].name then
+                        if child.Text == viewData.name then
+                            child.BackgroundColor3 = isSelected
+                                and Color3.fromRGB(100, 200, 100)
+                                or Color3.fromRGB(80, 80, 100)
+                        end
+                    end
+                end
+            end
+        end)
+    end
+
+    -- Close button
+    local closeBtn = Instance.new("TextButton")
+    closeBtn.Name = "CloseButton"
+    closeBtn.Size = UDim2.new(0, 100, 0, 40)
+    closeBtn.Position = UDim2.new(0.5, -50, 1, -60)
+    closeBtn.BackgroundColor3 = Color3.fromRGB(200, 80, 80)
+    closeBtn.Text = "Close"
+    closeBtn.TextColor3 = Color3.new(1, 1, 1)
+    closeBtn.Font = Enum.Font.GothamBold
+    closeBtn.TextSize = 18
+    closeBtn.Parent = frame
+
+    local closeBtnCorner = Instance.new("UICorner")
+    closeBtnCorner.CornerRadius = UDim.new(0, 5)
+    closeBtnCorner.Parent = closeBtn
+
+    closeBtn.MouseButton1Click:Connect(function()
+        screenGui.Enabled = false
+    end)
+
+    return screenGui
+end
+
 -- Create main menu UI
 local function createMainMenu()
     local screenGui = Instance.new("ScreenGui")
@@ -508,6 +680,22 @@ local function createMainMenu()
     subtitle.Font = Enum.Font.Gotham
     subtitle.TextSize = 16
     subtitle.Parent = frame
+
+    -- Settings button (top right of menu)
+    local settingsBtn = Instance.new("TextButton")
+    settingsBtn.Name = "SettingsButton"
+    settingsBtn.Size = UDim2.new(0, 50, 0, 50)
+    settingsBtn.Position = UDim2.new(1, -60, 0, 10)
+    settingsBtn.BackgroundColor3 = Color3.fromRGB(80, 80, 100)
+    settingsBtn.Text = "⚙️"
+    settingsBtn.TextColor3 = Color3.new(1, 1, 1)
+    settingsBtn.Font = Enum.Font.GothamBold
+    settingsBtn.TextSize = 24
+    settingsBtn.Parent = frame
+
+    local settingsBtnCorner = Instance.new("UICorner")
+    settingsBtnCorner.CornerRadius = UDim.new(0, 8)
+    settingsBtnCorner.Parent = settingsBtn
 
     local buttonY = 100
     local buttons = {
@@ -685,13 +873,29 @@ local function initialize()
         baseplate.Transparency = 1 -- Make invisible instead of deleting
     end
 
+    -- Initialize visual settings
+    AssetLoader.setPieceStyle(ClientState.pieceStyle)
+    CameraController.setBoardView(ClientState.boardView)
+
     -- Set up camera
-    CameraController.setupGameCamera()
+    CameraController.setupGameCamera(ClientState.boardView)
     CameraController.enableCameraRotation()
 
     local boardFolder, squares = createBoard()
+    local settingsMenu = createSettingsMenu()
     local mainMenu = createMainMenu()
     local gameHUD = createGameHUD()
+
+    -- Wire up settings button in main menu
+    local menuFrame = mainMenu:FindFirstChild("MenuFrame")
+    if menuFrame then
+        local settingsBtn = menuFrame:FindFirstChild("SettingsButton")
+        if settingsBtn then
+            settingsBtn.MouseButton1Click:Connect(function()
+                settingsMenu.Enabled = true
+            end)
+        end
+    end
 
     -- Create help button
     TutorialManager.createHelpButton()

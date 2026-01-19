@@ -11,6 +11,9 @@ local Constants = Shared.Constants
 
 local AssetLoader = {}
 
+-- Configuration: Change piece style here
+AssetLoader.pieceStyle = Constants.PieceStyle.CAT_SIMPLE -- Options: CAT_3D, CAT_SIMPLE, CHESS_CLASSIC, CHESS_MINIMAL
+
 -- Cat model asset IDs (replace with real IDs from Roblox Toolbox)
 -- To find models: Open Studio → Toolbox → Search "cat model" → Right-click → Copy Asset ID
 local CAT_MODEL_IDS = {
@@ -229,6 +232,127 @@ local function createPlaceholder(pieceType, color)
     return model
 end
 
+-- Create traditional chess piece (classic style)
+local function createChessPiece(pieceType, color)
+    local part = Instance.new("Part")
+    part.Name = "ChessPiece"
+    part.Size = Vector3.new(4, 6, 4)
+    part.Anchored = true
+    part.CanCollide = false
+    part.Material = Enum.Material.Marble
+
+    -- Team colors: white = light gray, black = dark gray
+    if color == Constants.Color.WHITE then
+        part.Color = Color3.fromRGB(230, 230, 230)
+    else
+        part.Color = Color3.fromRGB(40, 40, 40)
+    end
+
+    -- Add mesh for chess piece shape
+    local mesh = Instance.new("SpecialMesh")
+    mesh.MeshType = Enum.MeshType.FileMesh
+    mesh.Scale = Vector3.new(1.5, 1.5, 1.5)
+
+    -- Chess piece mesh IDs (Roblox built-in meshes)
+    local chessMeshes = {
+        [Constants.PieceType.KING] = "rbxasset://fonts/king.mesh",
+        [Constants.PieceType.QUEEN] = "rbxasset://fonts/queen.mesh",
+        [Constants.PieceType.ROOK] = "rbxasset://fonts/rook.mesh",
+        [Constants.PieceType.BISHOP] = "rbxasset://fonts/bishop.mesh",
+        [Constants.PieceType.KNIGHT] = "rbxasset://fonts/knight.mesh",
+        [Constants.PieceType.PAWN] = "rbxasset://fonts/pawn.mesh",
+    }
+
+    mesh.MeshId = chessMeshes[pieceType] or chessMeshes[Constants.PieceType.PAWN]
+    mesh.Parent = part
+
+    -- Add text label with symbol
+    local label = Instance.new("BillboardGui")
+    label.Size = UDim2.new(0, 200, 0, 100)
+    label.StudsOffset = Vector3.new(0, 5, 0)
+    label.AlwaysOnTop = true
+    label.Parent = part
+
+    local textLabel = Instance.new("TextLabel")
+    textLabel.Size = UDim2.new(1, 0, 1, 0)
+    textLabel.BackgroundTransparency = 1
+    textLabel.TextColor3 = color == Constants.Color.WHITE and Color3.fromRGB(255, 255, 255) or Color3.fromRGB(0, 0, 0)
+    textLabel.TextStrokeTransparency = 0.5
+    textLabel.Font = Enum.Font.SourceSansBold
+    textLabel.TextSize = 48
+    textLabel.Parent = label
+
+    -- Chess symbols
+    local symbols = {
+        [Constants.PieceType.KING] = "♔",
+        [Constants.PieceType.QUEEN] = "♕",
+        [Constants.PieceType.ROOK] = "♖",
+        [Constants.PieceType.BISHOP] = "♗",
+        [Constants.PieceType.KNIGHT] = "♘",
+        [Constants.PieceType.PAWN] = "♙",
+    }
+    textLabel.Text = symbols[pieceType] or "♟"
+
+    return part
+end
+
+-- Create minimal chess piece (simple geometric)
+local function createMinimalPiece(pieceType, color)
+    local part = Instance.new("Part")
+    part.Name = "MinimalPiece"
+    part.Anchored = true
+    part.CanCollide = false
+    part.Material = Enum.Material.Neon
+
+    -- Team colors: vibrant
+    if color == Constants.Color.WHITE then
+        part.Color = Color3.fromRGB(255, 255, 255)
+    else
+        part.Color = Color3.fromRGB(50, 50, 50)
+    end
+
+    -- Different shapes per piece type
+    local shapes = {
+        [Constants.PieceType.KING] = {shape = Enum.PartType.Ball, size = Vector3.new(5, 7, 5)},
+        [Constants.PieceType.QUEEN] = {shape = Enum.PartType.Ball, size = Vector3.new(4.5, 6, 4.5)},
+        [Constants.PieceType.ROOK] = {shape = Enum.PartType.Block, size = Vector3.new(4, 5, 4)},
+        [Constants.PieceType.BISHOP] = {shape = Enum.PartType.Ball, size = Vector3.new(4, 5, 4)},
+        [Constants.PieceType.KNIGHT] = {shape = Enum.PartType.Block, size = Vector3.new(4, 5, 3)},
+        [Constants.PieceType.PAWN] = {shape = Enum.PartType.Ball, size = Vector3.new(3, 4, 3)},
+    }
+
+    local shapeData = shapes[pieceType] or shapes[Constants.PieceType.PAWN]
+    part.Shape = shapeData.shape
+    part.Size = shapeData.size
+
+    -- Add simple icon
+    local label = Instance.new("BillboardGui")
+    label.Size = UDim2.new(0, 150, 0, 80)
+    label.StudsOffset = Vector3.new(0, 4, 0)
+    label.AlwaysOnTop = true
+    label.Parent = part
+
+    local textLabel = Instance.new("TextLabel")
+    textLabel.Size = UDim2.new(1, 0, 1, 0)
+    textLabel.BackgroundTransparency = 1
+    textLabel.TextColor3 = color == Constants.Color.WHITE and Color3.fromRGB(0, 0, 0) or Color3.fromRGB(255, 255, 255)
+    textLabel.Font = Enum.Font.GothamBold
+    textLabel.TextSize = 36
+    textLabel.Parent = label
+
+    local letters = {
+        [Constants.PieceType.KING] = "K",
+        [Constants.PieceType.QUEEN] = "Q",
+        [Constants.PieceType.ROOK] = "R",
+        [Constants.PieceType.BISHOP] = "B",
+        [Constants.PieceType.KNIGHT] = "N",
+        [Constants.PieceType.PAWN] = "P",
+    }
+    textLabel.Text = letters[pieceType] or "?"
+
+    return part
+end
+
 -- Prepare a model for use as a chess piece
 local function prepareModel(model, color)
     -- Ensure it's a Model or BasePart
@@ -269,8 +393,18 @@ local function prepareModel(model, color)
     return model
 end
 
--- Main function: Load cat piece model
+-- Main function: Load piece model based on style configuration
 function AssetLoader.loadPiece(pieceType, color)
+    -- Check piece style setting
+    if AssetLoader.pieceStyle == Constants.PieceStyle.CHESS_CLASSIC then
+        return createChessPiece(pieceType, color)
+    elseif AssetLoader.pieceStyle == Constants.PieceStyle.CHESS_MINIMAL then
+        return createMinimalPiece(pieceType, color)
+    elseif AssetLoader.pieceStyle == Constants.PieceStyle.CAT_SIMPLE then
+        return createPlaceholder(pieceType, color)
+    end
+
+    -- CAT_3D style: Try to load real 3D models
     local model = nil
 
     -- Strategy 1: Try asset ID (from Toolbox)
@@ -284,13 +418,23 @@ function AssetLoader.loadPiece(pieceType, color)
         model = loadModelFromStorage(pieceType)
     end
 
-    -- Strategy 3: Fallback to placeholder
+    -- Strategy 3: Fallback to cat placeholder
     if not model then
         return createPlaceholder(pieceType, color)
     end
 
     -- Prepare and return
     return prepareModel(model, color) or createPlaceholder(pieceType, color)
+end
+
+-- Set piece style (call this to change style at runtime)
+function AssetLoader.setPieceStyle(style)
+    AssetLoader.pieceStyle = style
+end
+
+-- Get current piece style
+function AssetLoader.getPieceStyle()
+    return AssetLoader.pieceStyle
 end
 
 -- Check if real models are available (for debugging)
