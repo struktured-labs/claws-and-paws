@@ -75,30 +75,133 @@ local function loadModelFromStorage(pieceType)
     return nil
 end
 
--- Create placeholder sphere with emoji (current system)
+-- Create placeholder cat model with basic shapes (improved system)
 local function createPlaceholder(pieceType, color)
-    local piece = Instance.new("Part")
-    piece.Shape = Enum.PartType.Ball
-    piece.Size = Vector3.new(6, 6, 6) -- Bigger for bigger board (was 3x3x3)
-    piece.Anchored = true
-    piece.CanCollide = false
-    piece.Material = Enum.Material.SmoothPlastic
+    local model = Instance.new("Model")
+    model.Name = "CatPlaceholder"
 
-    -- Cat-themed colors
-    if color == Constants.Color.WHITE then
-        piece.Color = Color3.fromRGB(255, 240, 220)
-        piece.Reflectance = 0.2
-    else
-        piece.Color = Color3.fromRGB(80, 60, 50)
-        piece.Reflectance = 0.15
-    end
+    -- Main body (slightly elongated sphere)
+    local body = Instance.new("Part")
+    body.Name = "Body"
+    body.Shape = Enum.PartType.Ball
+    body.Size = Vector3.new(5, 4.5, 6) -- Slightly elongated for cat shape
+    body.Anchored = true
+    body.CanCollide = false
+    body.Material = Enum.Material.SmoothPlastic
+    body.Position = Vector3.new(0, 0, 0)
 
-    -- Add emoji label (bigger for bigger pieces)
+    -- Breed-specific colors with variation
+    local breedColors = {
+        [Constants.PieceType.KING] = {     -- Lion - golden
+            white = Color3.fromRGB(255, 220, 150),
+            black = Color3.fromRGB(180, 140, 80)
+        },
+        [Constants.PieceType.QUEEN] = {    -- Persian - fluffy white/dark
+            white = Color3.fromRGB(255, 250, 245),
+            black = Color3.fromRGB(60, 55, 60)
+        },
+        [Constants.PieceType.ROOK] = {     -- Maine Coon - brown/gray
+            white = Color3.fromRGB(200, 180, 160),
+            black = Color3.fromRGB(90, 80, 70)
+        },
+        [Constants.PieceType.BISHOP] = {   -- Sphinx - pinkish
+            white = Color3.fromRGB(255, 220, 210),
+            black = Color3.fromRGB(140, 120, 110)
+        },
+        [Constants.PieceType.KNIGHT] = {   -- Caracal - sandy
+            white = Color3.fromRGB(255, 200, 150),
+            black = Color3.fromRGB(160, 120, 80)
+        },
+        [Constants.PieceType.PAWN] = {     -- Alley cat - mixed
+            white = Color3.fromRGB(240, 230, 220),
+            black = Color3.fromRGB(70, 60, 50)
+        },
+    }
+
+    local colorSet = breedColors[pieceType] or breedColors[Constants.PieceType.PAWN]
+    body.Color = color == Constants.Color.WHITE and colorSet.white or colorSet.black
+    body.Reflectance = 0.15
+    body.Parent = model
+
+    -- Head (smaller sphere on top)
+    local head = Instance.new("Part")
+    head.Name = "Head"
+    head.Shape = Enum.PartType.Ball
+    head.Size = Vector3.new(3, 3, 3)
+    head.Anchored = true
+    head.CanCollide = false
+    head.Material = Enum.Material.SmoothPlastic
+    head.Color = body.Color
+    head.Reflectance = body.Reflectance
+    head.Position = Vector3.new(0, 3, 1.5)
+    head.Parent = model
+
+    -- Left ear (wedge/pyramid)
+    local leftEar = Instance.new("WedgePart")
+    leftEar.Name = "LeftEar"
+    leftEar.Size = Vector3.new(0.8, 1.5, 0.8)
+    leftEar.Anchored = true
+    leftEar.CanCollide = false
+    leftEar.Material = Enum.Material.SmoothPlastic
+    leftEar.Color = body.Color
+    leftEar.Position = Vector3.new(-1, 4.2, 1.5)
+    leftEar.Orientation = Vector3.new(0, 0, 0)
+    leftEar.Parent = model
+
+    -- Right ear
+    local rightEar = leftEar:Clone()
+    rightEar.Name = "RightEar"
+    rightEar.Position = Vector3.new(1, 4.2, 1.5)
+    rightEar.Parent = model
+
+    -- Tail (curved cylinder)
+    local tail = Instance.new("Part")
+    tail.Name = "Tail"
+    tail.Shape = Enum.PartType.Cylinder
+    tail.Size = Vector3.new(3, 0.6, 0.6)
+    tail.Anchored = true
+    tail.CanCollide = false
+    tail.Material = Enum.Material.SmoothPlastic
+    tail.Color = body.Color
+    tail.Position = Vector3.new(0, 1, -3.5)
+    tail.Orientation = Vector3.new(0, 0, 90) -- Horizontal cylinder
+    tail.Parent = model
+
+    -- Nose (tiny pink sphere)
+    local nose = Instance.new("Part")
+    nose.Name = "Nose"
+    nose.Shape = Enum.PartType.Ball
+    nose.Size = Vector3.new(0.4, 0.4, 0.4)
+    nose.Anchored = true
+    nose.CanCollide = false
+    nose.Material = Enum.Material.Neon
+    nose.Color = Color3.fromRGB(255, 150, 180) -- Pink
+    nose.Position = Vector3.new(0, 3, 3)
+    nose.Parent = model
+
+    -- Eyes (glowing spheres)
+    local leftEye = Instance.new("Part")
+    leftEye.Name = "LeftEye"
+    leftEye.Shape = Enum.PartType.Ball
+    leftEye.Size = Vector3.new(0.6, 0.6, 0.6)
+    leftEye.Anchored = true
+    leftEye.CanCollide = false
+    leftEye.Material = Enum.Material.Neon
+    leftEye.Color = color == Constants.Color.WHITE and Color3.fromRGB(100, 200, 255) or Color3.fromRGB(255, 200, 100)
+    leftEye.Position = Vector3.new(-0.8, 3.5, 2.5)
+    leftEye.Parent = model
+
+    local rightEye = leftEye:Clone()
+    rightEye.Name = "RightEye"
+    rightEye.Position = Vector3.new(0.8, 3.5, 2.5)
+    rightEye.Parent = model
+
+    -- Add emoji label for piece type
     local label = Instance.new("BillboardGui")
-    label.Size = UDim2.new(0, 240, 0, 120) -- Double size
-    label.StudsOffset = Vector3.new(0, 5, 0) -- Higher offset for bigger pieces
+    label.Size = UDim2.new(0, 240, 0, 120)
+    label.StudsOffset = Vector3.new(0, 6, 0)
     label.AlwaysOnTop = true
-    label.Parent = piece
+    label.Parent = head
 
     local textLabel = Instance.new("TextLabel")
     textLabel.Size = UDim2.new(1, 0, 1, 0)
@@ -111,16 +214,19 @@ local function createPlaceholder(pieceType, color)
     textLabel.Parent = label
 
     local symbols = {
-        [Constants.PieceType.KING] = "🦁",
-        [Constants.PieceType.QUEEN] = "👑🐱",
-        [Constants.PieceType.ROOK] = "🏰🐱",
-        [Constants.PieceType.BISHOP] = "🔮🐱",
-        [Constants.PieceType.KNIGHT] = "⚡🐱",
+        [Constants.PieceType.KING] = "👑",
+        [Constants.PieceType.QUEEN] = "💎",
+        [Constants.PieceType.ROOK] = "🏰",
+        [Constants.PieceType.BISHOP] = "🔮",
+        [Constants.PieceType.KNIGHT] = "⚡",
         [Constants.PieceType.PAWN] = "🐾",
     }
     textLabel.Text = symbols[pieceType] or "🐱"
 
-    return piece
+    -- Set primary part for positioning
+    model.PrimaryPart = body
+
+    return model
 end
 
 -- Prepare a model for use as a chess piece
