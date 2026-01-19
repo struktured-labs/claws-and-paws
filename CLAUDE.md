@@ -236,6 +236,12 @@ Or publish directly from Studio after syncing with Rojo.
 - Never ask the user to perform Roblox-specific tasks manually
 - Use automation for ALL testing and verification
 
+### Development Rules
+- **Python**: Always use `uv` for Python dependencies and scripts (never pip, venv, or virtualenv)
+- **Temporary files**: Write to `./tmp/` in project directory, NEVER to `/tmp/`
+  - Project tmp is gitignored and keeps files organized
+  - System /tmp can be cleared and causes file loss
+
 ### Environment
 - Linux workstation (blackmage) with RTX 3090, 3-monitor setup
 - Windows mini PC (winmage at 192.168.1.200) runs Roblox Studio only
@@ -253,9 +259,35 @@ Or publish directly from Studio after syncing with Rojo.
 ### MCP Tools Available
 - `rojo` MCP server: Start/stop/restart Rojo server programmatically (see .mcp.json)
 
-### SSH Remote Control (winmage)
+### VNC Remote Control (PRIMARY METHOD)
+**TightVNC Server** on winmage (192.168.1.200:5900)
+- Password: `winmage`
+- User: `struk`
+- Allows full GUI automation without session isolation issues
+
 ```bash
-# Screenshot capture
+# VNC control with uv (installed: vncdotool, twisted)
+# All outputs go to ./tmp/ not /tmp/
+
+# Take screenshot
+uv run scripts/vnc-control.py screenshot ./tmp/screen.png
+
+# Click at coordinates
+uv run scripts/vnc-control.py click 352 50
+
+# Type text
+uv run scripts/vnc-control.py type "Hello"
+
+# Press key
+uv run scripts/vnc-control.py key enter
+
+# Move mouse
+uv run scripts/vnc-control.py move 960 540
+```
+
+### SSH Remote Control (FALLBACK)
+```bash
+# Screenshot capture (less reliable than VNC)
 ssh -i ~/.ssh/winmage_key struk@192.168.1.200 "schtasks /run /tn 'CaptureScreen'"
 scp -i ~/.ssh/winmage_key struk@192.168.1.200:C:/Screenshots/screen.png ./tmp/
 
@@ -266,6 +298,8 @@ ssh ... "schtasks /run /tn 'PressF5'"    # Start game (F5)
 # Check Roblox logs
 ssh ... "type C:\\Users\\struk\\AppData\\Local\\Roblox\\logs\\*.log"
 ```
+
+**Note:** SSH scheduled tasks run in Session 0 and cannot interact with GUI in user desktop session due to Windows UIPI (User Interface Privilege Isolation). VNC bypasses this limitation.
 
 ### Log Locations
 - **Roblox Studio logs**: `C:\Users\struk\AppData\Local\Roblox\logs\` (on winmage)
