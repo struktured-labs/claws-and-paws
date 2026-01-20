@@ -340,8 +340,20 @@ local function updateBoardVisuals(boardFolder, squares, gameState, skipAnimation
     end
 
     if not gameState or not gameState.board then
+        print("🐱 [DEBUG] No game state or board to render!")
         return
     end
+
+    -- Debug: Count pieces in board state
+    local pieceCount = 0
+    for row = 1, Constants.BOARD_SIZE do
+        for col = 1, Constants.BOARD_SIZE do
+            if gameState.board[row] and gameState.board[row][col] then
+                pieceCount = pieceCount + 1
+            end
+        end
+    end
+    print("🐱 [DEBUG] updateBoardVisuals: Found " .. pieceCount .. " pieces in game state")
 
     -- Place pieces
     for row = 1, Constants.BOARD_SIZE do
@@ -349,7 +361,11 @@ local function updateBoardVisuals(boardFolder, squares, gameState, skipAnimation
             local pieceData = gameState.board[row] and gameState.board[row][col]
             if pieceData then
                 local pieceModel = createPieceModel(pieceData.type, pieceData.color)
+                print("🐱 [DEBUG] Created piece at [" .. row .. "," .. col .. "]: type=" .. pieceData.type .. " color=" .. pieceData.color)
                 pieceModel.Name = string.format("Piece_%d_%d", row, col)
+
+                -- IMPORTANT: Parent FIRST, then position
+                pieceModel.Parent = boardFolder
 
                 local targetPos = Vector3.new(
                     (col - 3.5) * BoardConfig.squareSize,
@@ -357,14 +373,25 @@ local function updateBoardVisuals(boardFolder, squares, gameState, skipAnimation
                     (row - 3.5) * BoardConfig.squareSize
                 )
 
-                -- Handle both Part and Model positioning
+                -- Position after parenting (critical for Models!)
                 if pieceModel:IsA("Model") then
+                    -- MoveTo() only works correctly after parenting
                     pieceModel:MoveTo(targetPos)
+
+                    -- Rotate pieces to face each other
+                    -- Black pieces (rows 5-6) face white (180 degrees)
+                    -- White pieces (rows 1-2) face black (0 degrees)
+                    if pieceData.color == Constants.Color.BLACK then
+                        pieceModel:SetPrimaryPartCFrame(pieceModel.PrimaryPart.CFrame * CFrame.Angles(0, math.rad(180), 0))
+                    end
                 else
                     pieceModel.Position = targetPos
+                    -- Rotate single parts too
+                    if pieceData.color == Constants.Color.BLACK then
+                        pieceModel.CFrame = pieceModel.CFrame * CFrame.Angles(0, math.rad(180), 0)
+                    end
                 end
-
-                pieceModel.Parent = boardFolder
+                print("🐱 [DEBUG] Positioned piece at " .. tostring(targetPos))
 
                 -- Add spawn animation for new pieces (but not initial setup)
                 if not skipAnimation and gameState.lastMove then
@@ -424,6 +451,8 @@ local function onSquareClicked(row, col, boardFolder, squares)
             end
         end
 
+        print("🐱 [DEBUG] Have " .. #ClientState.validMoves .. " valid moves")
+        print("🐱 [DEBUG] Clicked square [" .. row .. "," .. col .. "], Valid move: " .. tostring(isValidMove))
         Logger.debug(string.format("Clicked square [%d,%d], Valid move: %s", row, col, tostring(isValidMove)))
 
         if isValidMove then
@@ -494,6 +523,10 @@ local function onSquareClicked(row, col, boardFolder, squares)
             local engine = Shared.ChessEngine.new()
             engine:deserialize(ClientState.gameState)
             ClientState.validMoves = engine:getValidMoves(row, col)
+            print("🐱 [DEBUG] Selected piece, found " .. #ClientState.validMoves .. " valid moves")
+            for i, move in ipairs(ClientState.validMoves) do
+                print("🐱 [DEBUG]   Move " .. i .. ": [" .. move.row .. "," .. move.col .. "]")
+            end
             Logger.debug(string.format("Found %d valid moves", #ClientState.validMoves))
         else
             Logger.debug(string.format("Cannot select square [%d,%d] - not your piece or empty", row, col))
@@ -614,6 +647,23 @@ local function createGameHUD()
     stroke.Color = Color3.fromRGB(255, 200, 100)
     stroke.Thickness = 3
     stroke.Parent = turnLabel
+
+    -- Player color indicator (shows if you're white or black)
+    local colorLabel = Instance.new("TextLabel")
+    colorLabel.Name = "ColorLabel"
+    colorLabel.Size = UDim2.new(0, 200, 0, 50)
+    colorLabel.Position = UDim2.new(0.5, -100, 0, 100)
+    colorLabel.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+    colorLabel.BackgroundTransparency = 0.3
+    colorLabel.Text = "You are: ?"
+    colorLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+    colorLabel.Font = Enum.Font.GothamBold
+    colorLabel.TextSize = 24
+    colorLabel.Parent = screenGui
+
+    local colorCorner = Instance.new("UICorner")
+    colorCorner.CornerRadius = UDim.new(0, 10)
+    colorCorner.Parent = colorLabel
 
     -- Resign button
     local resignBtn = Instance.new("TextButton")
@@ -764,8 +814,11 @@ local function initialize()
         ClientState.currentGameId = gameState.gameId
 
         -- Determine player color (white is always player1/first joiner)
-        -- For simplicity, assume white for now - server should send this
-        ClientState.playerColor = Constants.Color.WHITE
+        -- Determine player color (server should include this in state)
+        -- For AI games, player is always white
+        if not ClientState.playerColor then
+            ClientState.playerColor = gameState.playerColor or Constants.Color.WHITE
+        end
         ClientState.isMyTurn = gameState.currentTurn == ClientState.playerColor
 
         -- Update HUD (with nil check)
@@ -774,6 +827,21 @@ local function initialize()
             return
         end
         gameHUD.Enabled = true
+
+        -- Update color indicator
+        local colorLabel = gameHUD:FindFirstChild("ColorLabel")
+        if colorLabel then
+            if ClientState.playerColor == Constants.Color.WHITE then
+                colorLabel.Text = "You are: WHITE"
+                colorLabel.BackgroundColor3 = Color3.fromRGB(240, 240, 240)
+                colorLabel.TextColor3 = Color3.fromRGB(30, 30, 30)
+            else
+                colorLabel.Text = "You are: BLACK"
+                colorLabel.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+                colorLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+            end
+        end
+
         local turnLabel = gameHUD:FindFirstChild("TurnLabel")
         if turnLabel then
             if gameState.gameState == Constants.GameState.IN_PROGRESS then
@@ -833,12 +901,36 @@ local function initialize()
             raycastParams.FilterType = Enum.RaycastFilterType.Include
             raycastParams.FilterDescendantsInstances = {boardFolder}
 
+            -- Try multiple raycasts to find a square (pieces might be in the way)
             local result = workspace:Raycast(ray.Origin, ray.Direction * 100, raycastParams)
-            if result and result.Instance then
+            local attempts = 0
+            local maxAttempts = 10
+
+            while result and attempts < maxAttempts do
                 local row = result.Instance:GetAttribute("Row")
                 local col = result.Instance:GetAttribute("Col")
+
                 if row and col then
+                    -- Found a square!
                     onSquareClicked(row, col, boardFolder, squares)
+                    break
+                else
+                    -- Hit a piece or other object, ignore it and raycast again
+                    raycastParams.FilterDescendantsInstances = {boardFolder}
+                    local ignoreList = {result.Instance}
+
+                    -- Build ignore list by checking parent chain
+                    local current = result.Instance
+                    while current and current ~= boardFolder do
+                        table.insert(ignoreList, current)
+                        current = current.Parent
+                    end
+
+                    raycastParams.FilterType = Enum.RaycastFilterType.Exclude
+                    raycastParams.FilterDescendantsInstances = ignoreList
+
+                    result = workspace:Raycast(ray.Origin, ray.Direction * 100, raycastParams)
+                    attempts = attempts + 1
                 end
             end
         end

@@ -105,6 +105,17 @@ function GameSession:broadcastState()
     state.timeRemaining = self.timeRemaining
     state.gameId = self.id
 
+    -- Debug: Count pieces
+    local pieceCount = 0
+    for row = 1, Constants.BOARD_SIZE do
+        for col = 1, Constants.BOARD_SIZE do
+            if state.board[row] and state.board[row][col] then
+                pieceCount = pieceCount + 1
+            end
+        end
+    end
+    print("🐱 [SERVER] Broadcasting state with " .. pieceCount .. " pieces")
+
     if self.player1 then
         GetGameStateFunction:InvokeClient(self.player1, state)
     end

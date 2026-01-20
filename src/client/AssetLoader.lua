@@ -80,41 +80,52 @@ local function createPlaceholder(pieceType, color)
     local model = Instance.new("Model")
     model.Name = "CatPlaceholder"
 
+    -- Size scale by piece importance (makes pieces distinguishable!)
+    local sizeScales = {
+        [Constants.PieceType.KING] = 1.3,    -- Biggest - regal lion
+        [Constants.PieceType.QUEEN] = 1.2,   -- Large - fluffy persian
+        [Constants.PieceType.ROOK] = 1.1,    -- Big - maine coon
+        [Constants.PieceType.BISHOP] = 1.0,  -- Medium
+        [Constants.PieceType.KNIGHT] = 0.95, -- Slightly smaller - caracal
+        [Constants.PieceType.PAWN] = 0.8,    -- Smallest - kitten
+    }
+    local scale = sizeScales[pieceType] or 1.0
+
     -- Main body (slightly elongated sphere)
     local body = Instance.new("Part")
     body.Name = "Body"
     body.Shape = Enum.PartType.Ball
-    body.Size = Vector3.new(5, 4.5, 6) -- Slightly elongated for cat shape
+    body.Size = Vector3.new(5 * scale, 4.5 * scale, 6 * scale) -- Scale by piece type
     body.Anchored = true
     body.CanCollide = false
     body.Material = Enum.Material.SmoothPlastic
     body.Position = Vector3.new(0, 0, 0)
 
-    -- Breed-specific colors with variation
+    -- Breed-specific colors with STRONG white vs black contrast
     local breedColors = {
-        [Constants.PieceType.KING] = {     -- Lion - golden
-            white = Color3.fromRGB(255, 220, 150),
-            black = Color3.fromRGB(180, 140, 80)
+        [Constants.PieceType.KING] = {     -- Lion - golden vs dark brown
+            white = Color3.fromRGB(255, 230, 180),
+            black = Color3.fromRGB(100, 70, 40)
         },
-        [Constants.PieceType.QUEEN] = {    -- Persian - fluffy white/dark
-            white = Color3.fromRGB(255, 250, 245),
-            black = Color3.fromRGB(60, 55, 60)
+        [Constants.PieceType.QUEEN] = {    -- Persian - bright white vs charcoal
+            white = Color3.fromRGB(255, 255, 255),
+            black = Color3.fromRGB(40, 40, 45)
         },
-        [Constants.PieceType.ROOK] = {     -- Maine Coon - brown/gray
-            white = Color3.fromRGB(200, 180, 160),
-            black = Color3.fromRGB(90, 80, 70)
+        [Constants.PieceType.ROOK] = {     -- Maine Coon - tan vs dark gray
+            white = Color3.fromRGB(220, 200, 180),
+            black = Color3.fromRGB(60, 55, 50)
         },
-        [Constants.PieceType.BISHOP] = {   -- Sphinx - pinkish
-            white = Color3.fromRGB(255, 220, 210),
-            black = Color3.fromRGB(140, 120, 110)
+        [Constants.PieceType.BISHOP] = {   -- Sphinx - pink vs purple-gray
+            white = Color3.fromRGB(255, 210, 200),
+            black = Color3.fromRGB(80, 70, 75)
         },
-        [Constants.PieceType.KNIGHT] = {   -- Caracal - sandy
-            white = Color3.fromRGB(255, 200, 150),
-            black = Color3.fromRGB(160, 120, 80)
+        [Constants.PieceType.KNIGHT] = {   -- Caracal - sand vs dark sand
+            white = Color3.fromRGB(255, 220, 170),
+            black = Color3.fromRGB(90, 70, 50)
         },
-        [Constants.PieceType.PAWN] = {     -- Alley cat - mixed
-            white = Color3.fromRGB(240, 230, 220),
-            black = Color3.fromRGB(70, 60, 50)
+        [Constants.PieceType.PAWN] = {     -- Alley cat - cream vs very dark
+            white = Color3.fromRGB(245, 240, 235),
+            black = Color3.fromRGB(50, 45, 40)
         },
     }
 
@@ -196,18 +207,18 @@ local function createPlaceholder(pieceType, color)
     rightEye.Position = Vector3.new(0.8, 3.5, 2.5)
     rightEye.Parent = model
 
-    -- Add emoji label for piece type
+    -- Add emoji label for piece type (smaller, not always on top)
     local label = Instance.new("BillboardGui")
-    label.Size = UDim2.new(0, 240, 0, 120)
-    label.StudsOffset = Vector3.new(0, 6, 0)
-    label.AlwaysOnTop = true
+    label.Size = UDim2.new(0, 80, 0, 40)  -- Much smaller
+    label.StudsOffset = Vector3.new(0, 5, 0)  -- Closer to head
+    label.AlwaysOnTop = false  -- Don't show through everything
     label.Parent = head
 
     local textLabel = Instance.new("TextLabel")
     textLabel.Size = UDim2.new(1, 0, 1, 0)
     textLabel.BackgroundTransparency = 1
     textLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-    textLabel.TextStrokeTransparency = 0
+    textLabel.TextStrokeTransparency = 0.5  -- Lighter stroke
     textLabel.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
     textLabel.Font = Enum.Font.FredokaOne
     textLabel.TextScaled = true

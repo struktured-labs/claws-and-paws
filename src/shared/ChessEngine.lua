@@ -143,19 +143,24 @@ end
 function ChessEngine:getValidMoves(row, col)
     local piece = self:getPiece(row, col)
     if not piece then
+        print("🐱 [ENGINE DEBUG] No piece at [" .. row .. "," .. col .. "]")
         return {}
     end
 
     local moves = self:getPseudoLegalMoves(row, col)
+    print("🐱 [ENGINE DEBUG] getPseudoLegalMoves returned " .. #moves .. " moves for piece at [" .. row .. "," .. col .. "]")
     local validMoves = {}
 
     -- Filter out moves that leave king in check
-    for _, move in ipairs(moves) do
-        if self:isMoveLegal(row, col, move.row, move.col) then
+    for i, move in ipairs(moves) do
+        local isLegal = self:isMoveLegal(row, col, move.row, move.col)
+        print("🐱 [ENGINE DEBUG] Move " .. i .. " to [" .. move.row .. "," .. move.col .. "] legal: " .. tostring(isLegal))
+        if isLegal then
             table.insert(validMoves, move)
         end
     end
 
+    print("🐱 [ENGINE DEBUG] Returning " .. #validMoves .. " valid moves")
     return validMoves
 end
 
@@ -208,23 +213,14 @@ end
 function ChessEngine:getPawnMoves(row, col, color)
     local moves = {}
     local direction = (color == Constants.Color.WHITE) and 1 or -1
-    local startRow = (color == Constants.Color.WHITE) and 2 or 5
 
-    -- Forward move
+    -- Forward move (only 1 square in 6x6 chess - no double move)
     local newRow = row + direction
     if self:isOnBoard(newRow, col) and not self:getPiece(newRow, col) then
         table.insert(moves, {row = newRow, col = col})
-
-        -- Double move from starting position
-        if row == startRow then
-            local doubleRow = row + (2 * direction)
-            if not self:getPiece(doubleRow, col) then
-                table.insert(moves, {row = doubleRow, col = col})
-            end
-        end
     end
 
-    -- Captures
+    -- Diagonal captures
     for _, dc in ipairs({-1, 1}) do
         local captureCol = col + dc
         if self:isOnBoard(newRow, captureCol) then
@@ -234,6 +230,8 @@ function ChessEngine:getPawnMoves(row, col, color)
             end
         end
     end
+
+    -- Note: No en passant in 6x6 chess variant
 
     return moves
 end
@@ -373,6 +371,7 @@ end
 function ChessEngine:isMoveLegal(fromRow, fromCol, toRow, toCol)
     local piece = self:getPiece(fromRow, fromCol)
     if not piece then
+        print("🐱 [ENGINE DEBUG] isMoveLegal: no piece at [" .. fromRow .. "," .. fromCol .. "]")
         return false
     end
 
@@ -383,6 +382,7 @@ function ChessEngine:isMoveLegal(fromRow, fromCol, toRow, toCol)
 
     -- Check if own king is in check
     local inCheck = self:isInCheck(piece.color)
+    print("🐱 [ENGINE DEBUG] After move [" .. fromRow .. "," .. fromCol .. "]→[" .. toRow .. "," .. toCol .. "], inCheck=" .. tostring(inCheck))
 
     -- Undo move
     self.board[fromRow][fromCol] = piece
