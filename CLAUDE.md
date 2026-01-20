@@ -332,11 +332,26 @@ Claude can run the following commands without prompting:
 - **Solution**: Remove timeout parameter to wait indefinitely: `WaitForChild("RemoteName")`
 - **Symptom**: 5-second gaps between "Got X" debug messages, then nil errors
 
+### Rojo GUI Automation Limitations
+- **Problem**: Cannot fully automate clicking "Rojo → Connect" button in Studio
+- **Root Cause**: Windows Session 0 isolation - SSH commands can't interact with user desktop GUI
+- **Attempted Solutions** (all failed):
+  1. VNC with vncdotool - connections hang in reactor loop
+  2. PowerShell SendKeys via SSH - can't see Studio window (Session 0)
+  3. Scheduled tasks with SendKeys - keyboard shortcuts don't trigger Rojo panel
+  4. Direct mouse clicking via PowerShell - can't visually locate button in screenshots
+- **Workaround**: User must manually click Plugins → Rojo → Connect once after Rojo restart
+- **Automation Scripts Created**:
+  - `tmp/click-coord.ps1` - Click at (X,Y) coordinates
+  - `tmp/screenshot.ps1` - Capture screen via PowerShell
+  - `tmp/send-keys.ps1` - Send keyboard shortcuts (requires scheduled task)
+  - `scripts/vnc-control.py` - VNC automation (buggy, connections hang)
+
 ### Rojo Not Syncing
 - **Symptom**: Code changes not reflected in Studio
 - **Causes**:
   1. Rojo listening on localhost only (use `--address 0.0.0.0`)
-  2. Studio plugin disconnected after server restart
+  2. Studio plugin disconnected after server restart (requires manual reconnection)
   3. Wrong session ID after restart
 - **Fix**: Restart Rojo with correct address, reconnect in Studio
 
