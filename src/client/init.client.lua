@@ -237,6 +237,7 @@ local function createBoard()
     for row = 1, Constants.BOARD_SIZE do
         squares[row] = {}
         for col = 1, Constants.BOARD_SIZE do
+            -- Create the visual square (low and flat)
             local square = Instance.new("Part")
             square.Name = string.format("Square_%d_%d", row, col)
             square.Size = Vector3.new(BoardConfig.squareSize, 0.5, BoardConfig.squareSize)
@@ -246,7 +247,7 @@ local function createBoard()
                 (row - 3.5) * BoardConfig.squareSize
             )
             square.Anchored = true
-            square.CanCollide = true
+            square.CanCollide = false -- Don't block movement
 
             -- Checkerboard pattern with cat-themed polish
             if (row + col) % 2 == 0 then
@@ -260,12 +261,29 @@ local function createBoard()
             -- Add subtle shine for that Nintendo polish
             square.Reflectance = 0.1
 
-            -- Store row/col for click detection
-            square:SetAttribute("Row", row)
-            square:SetAttribute("Col", col)
-
             square.Parent = boardFolder
             squares[row][col] = square
+
+            -- Create an INVISIBLE TALL CLICKABLE COLUMN above each square
+            -- This makes clicking WAY easier - raycast hits this first!
+            local clickZone = Instance.new("Part")
+            clickZone.Name = string.format("ClickZone_%d_%d", row, col)
+            clickZone.Size = Vector3.new(BoardConfig.squareSize - 0.5, 50, BoardConfig.squareSize - 0.5) -- Tall column
+            clickZone.Position = Vector3.new(
+                (col - 3.5) * BoardConfig.squareSize,
+                25, -- Centered at height 25 (extends from 0 to 50)
+                (row - 3.5) * BoardConfig.squareSize
+            )
+            clickZone.Anchored = true
+            clickZone.CanCollide = false
+            clickZone.Transparency = 1 -- Completely invisible
+            clickZone.Material = Enum.Material.SmoothPlastic
+
+            -- Store row/col for click detection on the CLICK ZONE
+            clickZone:SetAttribute("Row", row)
+            clickZone:SetAttribute("Col", col)
+
+            clickZone.Parent = boardFolder
         end
     end
 
