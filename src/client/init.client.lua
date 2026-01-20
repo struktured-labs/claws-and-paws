@@ -450,6 +450,14 @@ local function updateBoardVisuals(boardFolder, squares, gameState, skipAnimation
             local square = squares[row][col]
             local baseColor = ((row + col) % 2 == 0) and BoardConfig.lightColor or BoardConfig.darkColor
             square.Color = baseColor
+
+            -- Reset click zones to cyan
+            local clickZoneName = string.format("ClickZone_%d_%d", row, col)
+            local clickZone = boardFolder:FindFirstChild(clickZoneName)
+            if clickZone then
+                clickZone.Color = Color3.fromRGB(0, 255, 255) -- Cyan
+                clickZone.Transparency = 0.95 -- Almost invisible
+            end
         end
     end
 
@@ -463,12 +471,23 @@ local function updateBoardVisuals(boardFolder, squares, gameState, skipAnimation
     -- Highlight valid moves with glow
     for _, move in ipairs(ClientState.validMoves) do
         print("🐱 [DEBUG] Highlighting valid move square at [" .. move.row .. "," .. move.col .. "]")
+
+        -- Highlight the ground square
         local sq = squares[move.row][move.col]
         if sq then
             sq.Color = BoardConfig.validMoveColor
             ParticleEffects.highlightSquare(sq, Color3.fromRGB(144, 238, 144))
         else
             warn("🐱 [ERROR] No square found at [" .. move.row .. "," .. move.col .. "]")
+        end
+
+        -- ALSO highlight the click zone so it's obvious where to click!
+        local clickZoneName = string.format("ClickZone_%d_%d", move.row, move.col)
+        local clickZone = boardFolder:FindFirstChild(clickZoneName)
+        if clickZone then
+            clickZone.Color = Color3.fromRGB(0, 255, 0) -- Bright green
+            clickZone.Transparency = 0.7 -- More visible when highlighted
+            print("🐱 [DEBUG] Highlighted click zone: " .. clickZoneName)
         end
     end
 end
