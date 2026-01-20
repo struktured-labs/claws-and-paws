@@ -38,9 +38,9 @@ def vnc_command(command, *args):
         x, y = int(args[0]), int(args[1])
         client.mouseMove(x, y)
         time.sleep(0.2)
-        client.mousePress(1)
+        client.mouseDown(1)
         time.sleep(0.1)
-        client.mouseRelease(1)
+        client.mouseUp(1)
         print(f"🖱️  Clicked at ({x}, {y})")
         
     elif command == 'type':
