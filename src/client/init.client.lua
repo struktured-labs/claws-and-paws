@@ -286,6 +286,25 @@ local function createBoard()
             clickZone:SetAttribute("Col", col)
 
             clickZone.Parent = boardFolder
+
+            -- Add a text label showing the coordinates for debugging
+            local label = Instance.new("BillboardGui")
+            label.Name = "CoordLabel"
+            label.Size = UDim2.new(0, 100, 0, 50)
+            label.StudsOffset = Vector3.new(0, 15, 0) -- Float above the column
+            label.AlwaysOnTop = true
+            label.Parent = clickZone
+
+            local textLabel = Instance.new("TextLabel")
+            textLabel.Size = UDim2.new(1, 0, 1, 0)
+            textLabel.BackgroundTransparency = 1
+            textLabel.Text = "[" .. row .. "," .. col .. "]"
+            textLabel.TextColor3 = Color3.fromRGB(255, 255, 0) -- Yellow
+            textLabel.TextStrokeTransparency = 0
+            textLabel.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+            textLabel.Font = Enum.Font.FredokaOne
+            textLabel.TextScaled = true
+            textLabel.Parent = label
         end
     end
 
