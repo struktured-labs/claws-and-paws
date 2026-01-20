@@ -276,8 +276,10 @@ local function createBoard()
             )
             clickZone.Anchored = true
             clickZone.CanCollide = false
-            clickZone.Transparency = 1 -- Completely invisible
-            clickZone.Material = Enum.Material.SmoothPlastic
+            clickZone.Transparency = 0.95 -- Almost invisible - just a hint for debugging
+            clickZone.Material = Enum.Material.Neon
+            clickZone.Color = Color3.fromRGB(0, 255, 255) -- Cyan so you can see them
+            print("🐱 [DEBUG] Created ClickZone_" .. row .. "_" .. col .. " at position " .. tostring(clickZone.Position))
 
             -- Store row/col for click detection on the CLICK ZONE
             clickZone:SetAttribute("Row", row)
