@@ -19,7 +19,12 @@ else
     warn("🐱 [SERVER] ChessAI is nil! AI games won't work.")
 end
 
--- Initialize logging system
+-- RemoteEvents for client-server communication (create BEFORE LogCollector)
+local Remotes = Instance.new("Folder")
+Remotes.Name = "Remotes"
+Remotes.Parent = ReplicatedStorage
+
+-- Initialize logging system (will find existing Remotes folder)
 LogCollector.init()
 
 -- Active games storage
@@ -30,11 +35,6 @@ local MatchmakingQueue = {
     [Constants.GameMode.CASUAL] = {},
     [Constants.GameMode.RANKED] = {},
 }
-
--- RemoteEvents for client-server communication
-local Remotes = Instance.new("Folder")
-Remotes.Name = "Remotes"
-Remotes.Parent = ReplicatedStorage
 
 local function createRemote(name, className)
     local remote = Instance.new(className)

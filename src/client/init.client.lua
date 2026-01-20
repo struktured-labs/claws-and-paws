@@ -43,6 +43,14 @@ local LocalPlayer = Players.LocalPlayer
 print("🐱 [DEBUG] Waiting for Remotes folder...")
 local Remotes = ReplicatedStorage:WaitForChild("Remotes")  -- Wait indefinitely
 print("🐱 [DEBUG] Remotes folder found!")
+
+-- Debug: List all children in Remotes folder
+print("🐱 [DEBUG] Children in Remotes folder:")
+for _, child in ipairs(Remotes:GetChildren()) do
+	print("🐱 [DEBUG]   - " .. child.Name .. " (" .. child.ClassName .. ")")
+end
+print("🐱 [DEBUG] Total children: " .. #Remotes:GetChildren())
+
 print("🐱 [DEBUG] Got Remotes! Waiting for events...")
 local RequestMatchEvent = Remotes:WaitForChild("RequestMatch")
 print("🐱 [DEBUG] Got RequestMatch")
