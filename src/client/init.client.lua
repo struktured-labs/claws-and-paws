@@ -423,9 +423,14 @@ local function updateBoardVisuals(boardFolder, squares, gameState, skipAnimation
 
     -- Highlight valid moves with glow
     for _, move in ipairs(ClientState.validMoves) do
+        print("🐱 [DEBUG] Highlighting valid move square at [" .. move.row .. "," .. move.col .. "]")
         local sq = squares[move.row][move.col]
-        sq.Color = BoardConfig.validMoveColor
-        ParticleEffects.highlightSquare(sq, Color3.fromRGB(144, 238, 144))
+        if sq then
+            sq.Color = BoardConfig.validMoveColor
+            ParticleEffects.highlightSquare(sq, Color3.fromRGB(144, 238, 144))
+        else
+            warn("🐱 [ERROR] No square found at [" .. move.row .. "," .. move.col .. "]")
+        end
     end
 end
 
@@ -906,44 +911,61 @@ local function initialize()
         if processed then return end
 
         if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            print("🐱 [CLICK] Mouse clicked at screen position: " .. input.Position.X .. "," .. input.Position.Y)
+
             local camera = workspace.CurrentCamera
-            local ray = camera:ViewportPointToRay(input.Position.X, input.Position.Y)
+            local mousePos = UserInputService:GetMouseLocation()
+            local ray = camera:ViewportPointToRay(mousePos.X, mousePos.Y)
+
+            print("🐱 [CLICK] Ray origin: " .. tostring(ray.Origin))
+            print("🐱 [CLICK] Ray direction: " .. tostring(ray.Direction))
 
             local raycastParams = RaycastParams.new()
-            raycastParams.FilterType = Enum.RaycastFilterType.Include
-            raycastParams.FilterDescendantsInstances = {boardFolder}
+            raycastParams.FilterType = Enum.RaycastFilterType.Exclude
+            raycastParams.FilterDescendantsInstances = {}
 
-            -- Try multiple raycasts to find a square (pieces might be in the way)
-            local result = workspace:Raycast(ray.Origin, ray.Direction * 100, raycastParams)
-            local attempts = 0
-            local maxAttempts = 10
+            -- First, try to hit ANYTHING to see what's in the way
+            local result = workspace:Raycast(ray.Origin, ray.Direction * 1000, raycastParams)
 
-            while result and attempts < maxAttempts do
+            if result then
+                print("🐱 [CLICK] Hit something: " .. result.Instance.Name .. " in " .. (result.Instance.Parent and result.Instance.Parent.Name or "nil"))
+                print("🐱 [CLICK] Hit position: " .. tostring(result.Position))
+                print("🐱 [CLICK] Distance: " .. (result.Position - ray.Origin).Magnitude)
+
+                -- Check if it's a board square
                 local row = result.Instance:GetAttribute("Row")
                 local col = result.Instance:GetAttribute("Col")
 
                 if row and col then
-                    -- Found a square! Convert attributes to numbers for proper comparison
+                    print("🐱 [CLICK] ✓ Found board square with Row=" .. row .. ", Col=" .. col)
                     onSquareClicked(tonumber(row), tonumber(col), boardFolder, squares)
-                    break
                 else
-                    -- Hit a piece or other object, ignore it and raycast again
-                    raycastParams.FilterDescendantsInstances = {boardFolder}
+                    print("🐱 [CLICK] ✗ Not a board square (no Row/Col attributes)")
+                    -- Try to find the board square underneath
                     local ignoreList = {result.Instance}
-
-                    -- Build ignore list by checking parent chain
                     local current = result.Instance
-                    while current and current ~= boardFolder do
+                    while current and current ~= workspace do
                         table.insert(ignoreList, current)
                         current = current.Parent
                     end
 
-                    raycastParams.FilterType = Enum.RaycastFilterType.Exclude
-                    raycastParams.FilterDescendantsInstances = ignoreList
+                    local params2 = RaycastParams.new()
+                    params2.FilterType = Enum.RaycastFilterType.Exclude
+                    params2.FilterDescendantsInstances = ignoreList
 
-                    result = workspace:Raycast(ray.Origin, ray.Direction * 100, raycastParams)
-                    attempts = attempts + 1
+                    local result2 = workspace:Raycast(ray.Origin, ray.Direction * 1000, params2)
+                    if result2 then
+                        local row2 = result2.Instance:GetAttribute("Row")
+                        local col2 = result2.Instance:GetAttribute("Col")
+                        print("🐱 [CLICK] Second raycast hit: " .. result2.Instance.Name)
+                        if row2 and col2 then
+                            print("🐱 [CLICK] ✓ Found board square underneath: Row=" .. row2 .. ", Col=" .. col2)
+                            onSquareClicked(tonumber(row2), tonumber(col2), boardFolder, squares)
+                        end
+                    end
                 end
+            else
+                print("🐱 [CLICK] ✗ Raycast hit nothing!")
             end
         end
     end)
