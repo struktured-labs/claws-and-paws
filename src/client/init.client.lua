@@ -451,8 +451,14 @@ local function onSquareClicked(row, col, boardFolder, squares)
             end
         end
 
-        print("🐱 [DEBUG] Have " .. #ClientState.validMoves .. " valid moves")
-        print("🐱 [DEBUG] Clicked square [" .. row .. "," .. col .. "], Valid move: " .. tostring(isValidMove))
+        print("🐱 [DEBUG] Have " .. #ClientState.validMoves .. " valid moves, checking click at [" .. row .. "," .. col .. "]")
+        print("🐱 [DEBUG] Click types: row=" .. type(row) .. " col=" .. type(col))
+        for i, move in ipairs(ClientState.validMoves) do
+            if move and move.row and move.col then
+                print("🐱 [DEBUG] Comparing with move " .. i .. ": [" .. move.row .. "," .. move.col .. "] (types: " .. type(move.row) .. "," .. type(move.col) .. ") match=" .. tostring(move.row == row and move.col == col))
+            end
+        end
+        print("🐱 [DEBUG] Result: Valid move: " .. tostring(isValidMove))
         Logger.debug(string.format("Clicked square [%d,%d], Valid move: %s", row, col, tostring(isValidMove)))
 
         if isValidMove then
@@ -524,8 +530,14 @@ local function onSquareClicked(row, col, boardFolder, squares)
             engine:deserialize(ClientState.gameState)
             ClientState.validMoves = engine:getValidMoves(row, col)
             print("🐱 [DEBUG] Selected piece, found " .. #ClientState.validMoves .. " valid moves")
-            for i, move in ipairs(ClientState.validMoves) do
-                print("🐱 [DEBUG]   Move " .. i .. ": [" .. move.row .. "," .. move.col .. "]")
+            if ClientState.validMoves and #ClientState.validMoves > 0 then
+                for i, move in ipairs(ClientState.validMoves) do
+                    if move and move.row and move.col then
+                        print("🐱 [DEBUG]   Move " .. i .. ": [" .. move.row .. "," .. move.col .. "]")
+                    else
+                        print("🐱 [DEBUG]   Move " .. i .. ": INVALID MOVE STRUCTURE")
+                    end
+                end
             end
             Logger.debug(string.format("Found %d valid moves", #ClientState.validMoves))
         else
@@ -911,8 +923,8 @@ local function initialize()
                 local col = result.Instance:GetAttribute("Col")
 
                 if row and col then
-                    -- Found a square!
-                    onSquareClicked(row, col, boardFolder, squares)
+                    -- Found a square! Convert attributes to numbers for proper comparison
+                    onSquareClicked(tonumber(row), tonumber(col), boardFolder, squares)
                     break
                 else
                     -- Hit a piece or other object, ignore it and raycast again
