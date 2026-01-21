@@ -77,6 +77,7 @@ local ClientState = {
     isMyTurn = false,
     hoveredSquare = nil,
     hoverEffect = nil,
+    cursorProjection = nil, -- Visual indicator showing where raycast hits
 }
 
 -- Board visual settings - Cat-themed!
@@ -1045,6 +1046,11 @@ local function initialize()
                 ClientState.hoverEffect:Destroy()
                 ClientState.hoverEffect = nil
             end
+            -- Clear cursor projection
+            if ClientState.cursorProjection then
+                ClientState.cursorProjection:Destroy()
+                ClientState.cursorProjection = nil
+            end
             ClientState.hoveredSquare = nil
             return
         end
@@ -1095,13 +1101,42 @@ local function initialize()
             row = tonumber(row)
             col = tonumber(col)
 
+            -- Update cursor projection to show where raycast is hitting
+            local square = squares[row][col]
+            if not ClientState.cursorProjection or
+               ClientState.cursorProjection.Parent == nil or
+               ClientState.hoveredSquare == nil or
+               ClientState.hoveredSquare.row ~= row or
+               ClientState.hoveredSquare.col ~= col then
+
+                -- Clear old projection
+                if ClientState.cursorProjection then
+                    ClientState.cursorProjection:Destroy()
+                end
+
+                -- Create subtle cursor projection on the square
+                local projection = Instance.new("Part")
+                projection.Name = "CursorProjection"
+                projection.Size = Vector3.new(BoardConfig.squareSize - 1, 0.1, BoardConfig.squareSize - 1)
+                projection.Position = square.Position + Vector3.new(0, 0.4, 0) -- Slightly above square
+                projection.Anchored = true
+                projection.CanCollide = false
+                projection.Transparency = 0.7
+                projection.Color = Color3.fromRGB(255, 255, 255) -- White glow
+                projection.Material = Enum.Material.Neon
+                projection.Parent = boardFolder
+                ClientState.cursorProjection = projection
+            end
+
+            -- Update hovered square for cursor projection
+            ClientState.hoveredSquare = {row = row, col = col}
+
             -- Check if this square has our piece
             local pieceData = ClientState.gameState.board[row] and ClientState.gameState.board[row][col]
             local isOurPiece = pieceData and pieceData.color == ClientState.playerColor
 
-            -- Only show hover on our pieces
-            if isOurPiece and (not ClientState.hoveredSquare or ClientState.hoveredSquare.row ~= row or ClientState.hoveredSquare.col ~= col) then
-                ClientState.hoveredSquare = {row = row, col = col}
+            -- Only show hover glow on our pieces
+            if isOurPiece then
 
                 -- Clear old hover effect
                 if ClientState.hoverEffect then
@@ -1121,9 +1156,8 @@ local function initialize()
 
                 -- Change mouse icon
                 mouse.Icon = "rbxasset://SystemCursors/PointingHand"
-            elseif not isOurPiece then
-                -- Hovering over a square but not our piece
-                ClientState.hoveredSquare = nil
+            else
+                -- Hovering over a square but not our piece - clear hover glow but keep cursor projection
                 if ClientState.hoverEffect then
                     ClientState.hoverEffect:Destroy()
                     ClientState.hoverEffect = nil
@@ -1131,11 +1165,15 @@ local function initialize()
                 mouse.Icon = ""
             end
         else
-            -- Not hovering over a square
+            -- Not hovering over any square - clear everything
             ClientState.hoveredSquare = nil
             if ClientState.hoverEffect then
                 ClientState.hoverEffect:Destroy()
                 ClientState.hoverEffect = nil
+            end
+            if ClientState.cursorProjection then
+                ClientState.cursorProjection:Destroy()
+                ClientState.cursorProjection = nil
             end
             mouse.Icon = ""
         end
