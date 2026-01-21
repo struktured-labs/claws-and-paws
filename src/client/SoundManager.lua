@@ -41,10 +41,46 @@ local function getSound(soundId, parent)
     return sound
 end
 
--- Play piece move sound
+-- Play piece move sound (different per piece type)
 function SoundManager.playMoveSound(pieceType)
-    local sound = getSound(SOUNDS.MEOW_CURIOUS)
-    sound.Volume = 0.4
+    local ReplicatedStorage = game:GetService("ReplicatedStorage")
+    local Shared = require(ReplicatedStorage.Shared)
+    local Constants = Shared.Constants
+
+    local soundId = SOUNDS.MEOW_CURIOUS -- Default
+    local volume = 0.4
+    local pitch = 1.0
+
+    -- Different sounds/pitches per piece type
+    if pieceType == Constants.PieceType.KING then
+        soundId = SOUNDS.MEOW_HAPPY -- Deep, regal meow
+        volume = 0.6
+        pitch = 0.8 -- Lower pitch
+    elseif pieceType == Constants.PieceType.QUEEN then
+        soundId = SOUNDS.PURR -- Elegant purr
+        volume = 0.5
+        pitch = 1.2 -- Higher pitch
+    elseif pieceType == Constants.PieceType.ROOK then
+        soundId = SOUNDS.GROWL -- Heavy, rumbling
+        volume = 0.5
+        pitch = 0.7 -- Very low
+    elseif pieceType == Constants.PieceType.BISHOP then
+        soundId = SOUNDS.MEOW_CURIOUS -- Mystical meow
+        volume = 0.4
+        pitch = 1.3 -- Higher, ethereal
+    elseif pieceType == Constants.PieceType.KNIGHT then
+        soundId = SOUNDS.POUNCE -- Quick, aggressive
+        volume = 0.5
+        pitch = 1.1
+    elseif pieceType == Constants.PieceType.PAWN then
+        soundId = SOUNDS.CLICK_SOFT -- Soft, cute
+        volume = 0.3
+        pitch = 1.4 -- High pitched (kitten)
+    end
+
+    local sound = getSound(soundId)
+    sound.Volume = volume
+    sound.PlaybackSpeed = pitch
     sound:Play()
 end
 

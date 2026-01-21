@@ -40,7 +40,7 @@ function ParticleEffects.createPawPrints(part)
     return emitter
 end
 
--- Create capture explosion effect
+-- Create capture explosion effect (BIG and OBVIOUS)
 function ParticleEffects.captureExplosion(position, color)
     local explosion = Instance.new("Part")
     explosion.Name = "CaptureEffect"
@@ -51,25 +51,62 @@ function ParticleEffects.captureExplosion(position, color)
     explosion.Transparency = 1
     explosion.Parent = workspace
 
-    -- Add particle emitter
-    local emitter = Instance.new("ParticleEmitter")
-    emitter.Texture = "rbxasset://textures/particles/sparkles_main.dds"
-    emitter.Color = ColorSequence.new(color)
-    emitter.Size = NumberSequence.new(1)
-    emitter.Transparency = NumberSequence.new({
+    -- Add MULTIPLE particle emitters for dramatic effect
+    -- Sparkles explosion
+    local sparkles = Instance.new("ParticleEmitter")
+    sparkles.Texture = "rbxasset://textures/particles/sparkles_main.dds"
+    sparkles.Color = ColorSequence.new(color)
+    sparkles.Size = NumberSequence.new({
+        NumberSequenceKeypoint.new(0, 2),
+        NumberSequenceKeypoint.new(1, 0)
+    })
+    sparkles.Transparency = NumberSequence.new({
         NumberSequenceKeypoint.new(0, 0),
         NumberSequenceKeypoint.new(1, 1)
     })
-    emitter.Lifetime = NumberRange.new(0.5, 1)
-    emitter.Rate = 100
-    emitter.Speed = NumberRange.new(5, 10)
-    emitter.SpreadAngle = Vector2.new(180, 180)
-    emitter.Parent = explosion
+    sparkles.Lifetime = NumberRange.new(0.8, 1.5)
+    sparkles.Rate = 200
+    sparkles.Speed = NumberRange.new(15, 25)
+    sparkles.SpreadAngle = Vector2.new(180, 180)
+    sparkles.Parent = explosion
+
+    -- Smoke poof
+    local smoke = Instance.new("ParticleEmitter")
+    smoke.Texture = "rbxasset://textures/particles/smoke_main.dds"
+    smoke.Color = ColorSequence.new(Color3.fromRGB(200, 200, 200))
+    smoke.Size = NumberSequence.new({
+        NumberSequenceKeypoint.new(0, 3),
+        NumberSequenceKeypoint.new(1, 6)
+    })
+    smoke.Transparency = NumberSequence.new({
+        NumberSequenceKeypoint.new(0, 0.5),
+        NumberSequenceKeypoint.new(1, 1)
+    })
+    smoke.Lifetime = NumberRange.new(1, 1.5)
+    smoke.Rate = 50
+    smoke.Speed = NumberRange.new(3, 8)
+    smoke.SpreadAngle = Vector2.new(360, 360)
+    smoke.Parent = explosion
+
+    -- Flash of light
+    local light = Instance.new("PointLight")
+    light.Color = color
+    light.Brightness = 10
+    light.Range = 30
+    light.Parent = explosion
 
     -- Emit and cleanup
     task.spawn(function()
-        emitter:Emit(20)
-        task.wait(2)
+        sparkles:Emit(50)
+        smoke:Emit(20)
+
+        -- Flash the light
+        for i = 1, 10 do
+            light.Brightness = 10 - i
+            task.wait(0.05)
+        end
+
+        task.wait(1.5)
         explosion:Destroy()
     end)
 end

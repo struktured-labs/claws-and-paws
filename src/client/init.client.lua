@@ -81,14 +81,14 @@ local ClientState = {
 
 -- Board visual settings - Cat-themed!
 local BoardConfig = {
-    squareSize = 12, -- MUCH BIGGER board (was 8)
-    -- Cozy cat cafe vibes: cream and warm brown
-    lightColor = Color3.fromRGB(255, 245, 230), -- Cream (like Persian cat fur)
-    darkColor = Color3.fromRGB(139, 90, 60),    -- Warm brown (like tabby stripes)
-    highlightColor = Color3.fromRGB(255, 200, 100), -- Warm golden glow
-    validMoveColor = Color3.fromRGB(180, 255, 180), -- Soft mint (catnip vibes)
-    lastMoveColor = Color3.fromRGB(255, 220, 150),  -- Peachy highlight
-    checkColor = Color3.fromRGB(255, 120, 120),     -- Salmon pink (danger!)
+    squareSize = 20, -- HUGE board for better visibility (was 12)
+    -- Fresh color scheme: teal and cream (more pleasant than brown)
+    lightColor = Color3.fromRGB(240, 248, 255), -- Alice blue (light, clean)
+    darkColor = Color3.fromRGB(64, 224, 208),    -- Turquoise (vibrant, not muddy)
+    highlightColor = Color3.fromRGB(255, 215, 0), -- Gold highlight
+    validMoveColor = Color3.fromRGB(144, 238, 144), -- Light green (clear valid moves)
+    lastMoveColor = Color3.fromRGB(255, 182, 193),  -- Light pink
+    checkColor = Color3.fromRGB(255, 69, 0),        -- Red-orange (danger!)
 }
 
 -- Piece model references (to be replaced with actual assets)
