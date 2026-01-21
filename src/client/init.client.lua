@@ -338,12 +338,18 @@ end
 
 -- Update board visuals from game state
 local function updateBoardVisuals(boardFolder, squares, gameState, skipAnimation)
+    print("🐱 [UPDATE] ========== updateBoardVisuals called ==========")
+
     -- Clear existing pieces and effects
+    local destroyedCount = 0
     for _, child in ipairs(boardFolder:GetChildren()) do
         if child.Name:sub(1, 5) == "Piece" then
+            print("🐱 [UPDATE] Destroying piece: " .. child.Name)
             child:Destroy()
+            destroyedCount = destroyedCount + 1
         end
     end
+    print("🐱 [UPDATE] Destroyed " .. destroyedCount .. " existing pieces")
 
     -- Clear all glows and sparkles from squares
     for row = 1, Constants.BOARD_SIZE do
@@ -358,20 +364,23 @@ local function updateBoardVisuals(boardFolder, squares, gameState, skipAnimation
     end
 
     if not gameState or not gameState.board then
-        print("🐱 [DEBUG] No game state or board to render!")
+        warn("🐱 [UPDATE] ⚠️ No game state or board to render!")
         return
     end
 
-    -- Debug: Count pieces in board state
+    -- Debug: Count and LIST all pieces in board state
     local pieceCount = 0
+    print("🐱 [UPDATE] Pieces in game state:")
     for row = 1, Constants.BOARD_SIZE do
         for col = 1, Constants.BOARD_SIZE do
             if gameState.board[row] and gameState.board[row][col] then
+                local piece = gameState.board[row][col]
+                print(string.format("🐱 [UPDATE]   [%d,%d]: type=%d color=%d", row, col, piece.type, piece.color))
                 pieceCount = pieceCount + 1
             end
         end
     end
-    print("🐱 [DEBUG] updateBoardVisuals: Found " .. pieceCount .. " pieces in game state")
+    print("🐱 [UPDATE] Total pieces in state: " .. pieceCount)
 
     -- Place pieces
     for row = 1, Constants.BOARD_SIZE do
@@ -572,7 +581,42 @@ local function onSquareClicked(row, col, boardFolder, squares)
         end
     end
 
-    updateBoardVisuals(boardFolder, squares, ClientState.gameState)
+    -- Don't call updateBoardVisuals here! It would destroy pieces mid-animation.
+    -- The server will broadcast updated state after processing the move, which will call updateBoardVisuals.
+    -- For selection/deselection, we only need to update highlights (which updateBoardVisuals does),
+    -- but we should update them WITHOUT destroying/recreating all pieces.
+
+    -- Instead, just update highlights on squares
+    for row = 1, Constants.BOARD_SIZE do
+        for col = 1, Constants.BOARD_SIZE do
+            local square = squares[row][col]
+            -- Remove old effects
+            for _, child in ipairs(square:GetChildren()) do
+                if child:IsA("SurfaceLight") or child:IsA("Sparkles") then
+                    child:Destroy()
+                end
+            end
+            -- Reset to base color
+            local baseColor = ((row + col) % 2 == 0) and BoardConfig.lightColor or BoardConfig.darkColor
+            square.Color = baseColor
+        end
+    end
+
+    -- Highlight selected square
+    if ClientState.selectedSquare then
+        local sq = squares[ClientState.selectedSquare.row][ClientState.selectedSquare.col]
+        sq.Color = BoardConfig.highlightColor
+        ParticleEffects.createSparkles(sq)
+    end
+
+    -- Highlight valid moves
+    for _, move in ipairs(ClientState.validMoves) do
+        if move and move.row and move.col then
+            local sq = squares[move.row][move.col]
+            sq.Color = BoardConfig.validMoveColor
+            ParticleEffects.highlightSquare(sq)
+        end
+    end
 end
 
 -- Create main menu UI
