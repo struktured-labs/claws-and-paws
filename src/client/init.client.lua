@@ -992,7 +992,7 @@ local function initialize()
         end
     end)
 
-    -- Handle hover effects
+    -- Handle hover effects using click zones (same as click detection)
     local RunService = game:GetService("RunService")
     RunService.RenderStepped:Connect(function()
         if not ClientState.isMyTurn or not ClientState.gameState then
@@ -1010,17 +1010,23 @@ local function initialize()
         local mousePos = UserInputService:GetMouseLocation()
 
         local ray = camera:ViewportPointToRay(mousePos.X, mousePos.Y)
-        local raycastParams = RaycastParams.new()
-        raycastParams.FilterType = Enum.RaycastFilterType.Include
-        raycastParams.FilterDescendantsInstances = {boardFolder}
 
-        local result = workspace:Raycast(ray.Origin, ray.Direction * 100, raycastParams)
+        -- Raycast to hit ANYTHING (including click zones)
+        local raycastParams = RaycastParams.new()
+        raycastParams.FilterType = Enum.RaycastFilterType.Exclude
+        raycastParams.FilterDescendantsInstances = {}
+
+        local result = workspace:Raycast(ray.Origin, ray.Direction * 1000, raycastParams)
 
         if result and result.Instance then
+            -- Check if we hit a click zone or board square
             local row = result.Instance:GetAttribute("Row")
             local col = result.Instance:GetAttribute("Col")
 
             if row and col then
+                row = tonumber(row)
+                col = tonumber(col)
+
                 -- Check if this square has our piece
                 local pieceData = ClientState.gameState.board[row] and ClientState.gameState.board[row][col]
                 local isOurPiece = pieceData and pieceData.color == ClientState.playerColor
@@ -1034,7 +1040,7 @@ local function initialize()
                         ClientState.hoverEffect:Destroy()
                     end
 
-                    -- Add new hover effect
+                    -- Add new hover effect to the ground square
                     local square = squares[row][col]
                     local hoverGlow = Instance.new("SurfaceLight")
                     hoverGlow.Name = "HoverGlow"
@@ -1047,9 +1053,17 @@ local function initialize()
 
                     -- Change mouse icon
                     mouse.Icon = "rbxasset://SystemCursors/PointingHand"
+                elseif not isOurPiece then
+                    -- Hovering over a square but not our piece
+                    ClientState.hoveredSquare = nil
+                    if ClientState.hoverEffect then
+                        ClientState.hoverEffect:Destroy()
+                        ClientState.hoverEffect = nil
+                    end
+                    mouse.Icon = ""
                 end
             else
-                -- Not hovering over a square
+                -- Not hovering over a square (hit something else)
                 ClientState.hoveredSquare = nil
                 if ClientState.hoverEffect then
                     ClientState.hoverEffect:Destroy()
