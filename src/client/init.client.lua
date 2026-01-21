@@ -81,7 +81,7 @@ local ClientState = {
 
 -- Board visual settings - Cat-themed!
 local BoardConfig = {
-    squareSize = 8, -- BIGGER board (was 4)
+    squareSize = 12, -- MUCH BIGGER board (was 8)
     -- Cozy cat cafe vibes: cream and warm brown
     lightColor = Color3.fromRGB(255, 245, 230), -- Cream (like Persian cat fur)
     darkColor = Color3.fromRGB(139, 90, 60),    -- Warm brown (like tabby stripes)
@@ -276,35 +276,14 @@ local function createBoard()
             )
             clickZone.Anchored = true
             clickZone.CanCollide = false
-            clickZone.Transparency = 0.95 -- Almost invisible - just a hint for debugging
-            clickZone.Material = Enum.Material.Neon
-            clickZone.Color = Color3.fromRGB(0, 255, 255) -- Cyan so you can see them
-            print("🐱 [DEBUG] Created ClickZone_" .. row .. "_" .. col .. " at position " .. tostring(clickZone.Position))
+            clickZone.Transparency = 1 -- Completely invisible
+            clickZone.Material = Enum.Material.SmoothPlastic
 
             -- Store row/col for click detection on the CLICK ZONE
             clickZone:SetAttribute("Row", row)
             clickZone:SetAttribute("Col", col)
 
             clickZone.Parent = boardFolder
-
-            -- Add a text label showing the coordinates for debugging
-            local label = Instance.new("BillboardGui")
-            label.Name = "CoordLabel"
-            label.Size = UDim2.new(0, 100, 0, 50)
-            label.StudsOffset = Vector3.new(0, 15, 0) -- Float above the column
-            label.AlwaysOnTop = true
-            label.Parent = clickZone
-
-            local textLabel = Instance.new("TextLabel")
-            textLabel.Size = UDim2.new(1, 0, 1, 0)
-            textLabel.BackgroundTransparency = 1
-            textLabel.Text = "[" .. row .. "," .. col .. "]"
-            textLabel.TextColor3 = Color3.fromRGB(255, 255, 0) -- Yellow
-            textLabel.TextStrokeTransparency = 0
-            textLabel.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
-            textLabel.Font = Enum.Font.FredokaOne
-            textLabel.TextScaled = true
-            textLabel.Parent = label
         end
     end
 
@@ -451,12 +430,11 @@ local function updateBoardVisuals(boardFolder, squares, gameState, skipAnimation
             local baseColor = ((row + col) % 2 == 0) and BoardConfig.lightColor or BoardConfig.darkColor
             square.Color = baseColor
 
-            -- Reset click zones to cyan
+            -- Reset click zones to invisible
             local clickZoneName = string.format("ClickZone_%d_%d", row, col)
             local clickZone = boardFolder:FindFirstChild(clickZoneName)
             if clickZone then
-                clickZone.Color = Color3.fromRGB(0, 255, 255) -- Cyan
-                clickZone.Transparency = 0.95 -- Almost invisible
+                clickZone.Transparency = 1 -- Invisible
             end
         end
     end
@@ -470,24 +448,10 @@ local function updateBoardVisuals(boardFolder, squares, gameState, skipAnimation
 
     -- Highlight valid moves with glow
     for _, move in ipairs(ClientState.validMoves) do
-        print("🐱 [DEBUG] Highlighting valid move square at [" .. move.row .. "," .. move.col .. "]")
-
-        -- Highlight the ground square
         local sq = squares[move.row][move.col]
         if sq then
             sq.Color = BoardConfig.validMoveColor
             ParticleEffects.highlightSquare(sq, Color3.fromRGB(144, 238, 144))
-        else
-            warn("🐱 [ERROR] No square found at [" .. move.row .. "," .. move.col .. "]")
-        end
-
-        -- ALSO highlight the click zone so it's obvious where to click!
-        local clickZoneName = string.format("ClickZone_%d_%d", move.row, move.col)
-        local clickZone = boardFolder:FindFirstChild(clickZoneName)
-        if clickZone then
-            clickZone.Color = Color3.fromRGB(0, 255, 0) -- Bright green
-            clickZone.Transparency = 0.7 -- More visible when highlighted
-            print("🐱 [DEBUG] Highlighted click zone: " .. clickZoneName)
         end
     end
 end

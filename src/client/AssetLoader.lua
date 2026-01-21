@@ -207,32 +207,165 @@ local function createPlaceholder(pieceType, color)
     rightEye.Position = Vector3.new(0.8, 3.5, 2.5)
     rightEye.Parent = model
 
-    -- Add emoji label for piece type (smaller, not always on top)
-    local label = Instance.new("BillboardGui")
-    label.Size = UDim2.new(0, 80, 0, 40)  -- Much smaller
-    label.StudsOffset = Vector3.new(0, 5, 0)  -- Closer to head
-    label.AlwaysOnTop = false  -- Don't show through everything
-    label.Parent = head
+    -- Add 3D accessories based on piece type (no more emojis!)
+    if pieceType == Constants.PieceType.KING then
+        -- Royal crown
+        local crown = Instance.new("Part")
+        crown.Name = "Crown"
+        crown.Shape = Enum.PartType.Cylinder
+        crown.Size = Vector3.new(0.5, 2.5, 2.5)
+        crown.Anchored = true
+        crown.CanCollide = false
+        crown.Material = Enum.Material.Neon
+        crown.Color = Color3.fromRGB(255, 215, 0) -- Gold
+        crown.Position = Vector3.new(0, 5, 1.5)
+        crown.Orientation = Vector3.new(0, 0, 90)
+        crown.Parent = model
 
-    local textLabel = Instance.new("TextLabel")
-    textLabel.Size = UDim2.new(1, 0, 1, 0)
-    textLabel.BackgroundTransparency = 1
-    textLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-    textLabel.TextStrokeTransparency = 0.5  -- Lighter stroke
-    textLabel.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
-    textLabel.Font = Enum.Font.FredokaOne
-    textLabel.TextScaled = true
-    textLabel.Parent = label
+        -- Crown points
+        for i = 1, 4 do
+            local point = Instance.new("Part")
+            point.Shape = Enum.PartType.Cylinder
+            point.Size = Vector3.new(0.3, 0.6, 0.6)
+            point.Anchored = true
+            point.CanCollide = false
+            point.Material = Enum.Material.Neon
+            point.Color = Color3.fromRGB(255, 215, 0)
+            local angle = (i - 1) * 90
+            local rad = math.rad(angle)
+            point.Position = Vector3.new(math.sin(rad) * 1.2, 5, 1.5 + math.cos(rad) * 1.2)
+            point.Orientation = Vector3.new(0, angle, 0)
+            point.Parent = model
+        end
 
-    local symbols = {
-        [Constants.PieceType.KING] = "👑",
-        [Constants.PieceType.QUEEN] = "💎",
-        [Constants.PieceType.ROOK] = "🏰",
-        [Constants.PieceType.BISHOP] = "🔮",
-        [Constants.PieceType.KNIGHT] = "⚡",
-        [Constants.PieceType.PAWN] = "🐾",
-    }
-    textLabel.Text = symbols[pieceType] or "🐱"
+    elseif pieceType == Constants.PieceType.QUEEN then
+        -- Feminine crown (tiara)
+        local tiara = Instance.new("Part")
+        tiara.Name = "Tiara"
+        tiara.Shape = Enum.PartType.Cylinder
+        tiara.Size = Vector3.new(0.4, 2.2, 2.2)
+        tiara.Anchored = true
+        tiara.CanCollide = false
+        tiara.Material = Enum.Material.Neon
+        tiara.Color = Color3.fromRGB(255, 192, 203) -- Pink/rose gold
+        tiara.Position = Vector3.new(0, 5, 1.5)
+        tiara.Orientation = Vector3.new(0, 0, 90)
+        tiara.Parent = model
+
+        -- Central jewel
+        local jewel = Instance.new("Part")
+        jewel.Shape = Enum.PartType.Ball
+        jewel.Size = Vector3.new(0.8, 0.8, 0.8)
+        jewel.Anchored = true
+        jewel.CanCollide = false
+        jewel.Material = Enum.Material.Neon
+        jewel.Color = Color3.fromRGB(255, 20, 147) -- Deep pink
+        jewel.Position = Vector3.new(0, 5.5, 2.5)
+        jewel.Parent = model
+
+        -- Dress/gown (wider body)
+        local dress = Instance.new("Part")
+        dress.Name = "Dress"
+        dress.Shape = Enum.PartType.Cylinder
+        dress.Size = Vector3.new(4, 4, 4)
+        dress.Anchored = true
+        dress.CanCollide = false
+        dress.Material = Enum.Material.Fabric
+        dress.Color = body.Color
+        dress.Position = Vector3.new(0, -1, 0)
+        dress.Orientation = Vector3.new(0, 0, 90)
+        dress.Parent = model
+
+    elseif pieceType == Constants.PieceType.ROOK then
+        -- Castle battlements
+        local battlement = Instance.new("Part")
+        battlement.Name = "Battlement"
+        battlement.Size = Vector3.new(2.5, 1.5, 2.5)
+        battlement.Anchored = true
+        battlement.CanCollide = false
+        battlement.Material = Enum.Material.Concrete
+        battlement.Color = Color3.fromRGB(120, 120, 120) -- Stone gray
+        battlement.Position = Vector3.new(0, 5, 1.5)
+        battlement.Parent = model
+
+        -- Crenellations (castle top teeth)
+        for i = 1, 4 do
+            local crenel = Instance.new("Part")
+            crenel.Size = Vector3.new(0.6, 0.8, 0.6)
+            crenel.Anchored = true
+            crenel.CanCollide = false
+            crenel.Material = Enum.Material.Concrete
+            crenel.Color = Color3.fromRGB(120, 120, 120)
+            if i <= 2 then
+                crenel.Position = Vector3.new((i == 1) and -0.9 or 0.9, 5.8, 1.5 - 0.9)
+            else
+                crenel.Position = Vector3.new((i == 3) and -0.9 or 0.9, 5.8, 1.5 + 0.9)
+            end
+            crenel.Parent = model
+        end
+
+    elseif pieceType == Constants.PieceType.BISHOP then
+        -- Tall bishop mitre (hat)
+        local mitre = Instance.new("Part")
+        mitre.Name = "Mitre"
+        mitre.Shape = Enum.PartType.Cylinder
+        mitre.Size = Vector3.new(3, 1.5, 1.5)
+        mitre.Anchored = true
+        mitre.CanCollide = false
+        mitre.Material = Enum.Material.SmoothPlastic
+        mitre.Color = Color3.fromRGB(148, 0, 211) -- Purple
+        mitre.Position = Vector3.new(0, 6, 1.5)
+        mitre.Orientation = Vector3.new(0, 0, 90)
+        mitre.Parent = model
+
+        -- Mitre point (top triangle)
+        local point = Instance.new("WedgePart")
+        point.Size = Vector3.new(1.5, 1.5, 1.5)
+        point.Anchored = true
+        point.CanCollide = false
+        point.Material = Enum.Material.SmoothPlastic
+        point.Color = Color3.fromRGB(148, 0, 211)
+        point.Position = Vector3.new(0, 7.5, 1.5)
+        point.Orientation = Vector3.new(90, 0, 0)
+        point.Parent = model
+
+    elseif pieceType == Constants.PieceType.KNIGHT then
+        -- Knight helmet with visor
+        local helmet = Instance.new("Part")
+        helmet.Name = "Helmet"
+        helmet.Shape = Enum.PartType.Ball
+        helmet.Size = Vector3.new(2.5, 2.5, 2.5)
+        helmet.Anchored = true
+        helmet.CanCollide = false
+        helmet.Material = Enum.Material.Metal
+        helmet.Color = Color3.fromRGB(192, 192, 192) -- Silver
+        helmet.Position = Vector3.new(0, 5, 1.5)
+        helmet.Parent = model
+
+        -- Helmet plume
+        local plume = Instance.new("Part")
+        plume.Shape = Enum.PartType.Cylinder
+        plume.Size = Vector3.new(1.5, 0.5, 0.5)
+        plume.Anchored = true
+        plume.CanCollide = false
+        plume.Material = Enum.Material.Neon
+        plume.Color = Color3.fromRGB(255, 0, 0) -- Red plume
+        plume.Position = Vector3.new(0, 6.5, 1.5)
+        plume.Orientation = Vector3.new(0, 0, 90)
+        plume.Parent = model
+
+        -- Visor slit
+        local visor = Instance.new("Part")
+        visor.Size = Vector3.new(2, 0.3, 0.2)
+        visor.Anchored = true
+        visor.CanCollide = false
+        visor.Material = Enum.Material.Neon
+        visor.Color = Color3.fromRGB(0, 0, 0) -- Dark slit
+        visor.Position = Vector3.new(0, 5, 2.8)
+        visor.Parent = model
+
+    -- Pawns get no accessory (just cute cats!)
+    end
 
     -- Set primary part for positioning
     model.PrimaryPart = body

@@ -16,12 +16,14 @@ function CameraController.setupGameCamera()
     local camera = workspace.CurrentCamera
 
     -- Position camera above and angled toward board
-    local cameraPosition = Vector3.new(0, 60, -50)
+    -- Camera is positioned SOUTH of board (negative Z) looking NORTH
+    -- This ensures white (rows 1-2, negative Z) is always at bottom
+    local cameraPosition = Vector3.new(0, 80, -70) -- Higher and further back for bigger board
     local lookAt = Vector3.new(0, 0, 0)
 
     camera.CameraType = Enum.CameraType.Scriptable
     camera.CFrame = CFrame.new(cameraPosition, lookAt)
-    print("🐱 [DEBUG] Camera positioned for board view")
+    print("🐱 [DEBUG] Camera positioned for board view (white at bottom)")
 
     return camera
 end
@@ -34,7 +36,7 @@ function CameraController.enableCameraRotation()
     local rotating = false
     local lastMousePos = nil
     local currentAngle = 0
-    local currentHeight = 60 -- Match new camera height
+    local currentHeight = 80 -- Match new camera height for bigger board
 
     UserInputService.InputBegan:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton2 then
@@ -56,9 +58,9 @@ function CameraController.enableCameraRotation()
                 currentAngle = currentAngle + delta.X * 0.01
 
                 -- Update camera position
-                local radius = 50 -- Bigger radius for bigger board
+                local radius = 70 -- Even bigger radius for bigger board
                 local x = math.sin(currentAngle) * radius
-                local z = math.cos(currentAngle) * radius
+                local z = math.cos(currentAngle) * radius - 70 -- Offset to keep white at bottom
                 local pos = Vector3.new(x, currentHeight, z)
 
                 camera.CFrame = CFrame.new(pos, Vector3.new(0, 0, 0))
@@ -69,11 +71,11 @@ function CameraController.enableCameraRotation()
 
         -- Mouse wheel for zoom
         if input.UserInputType == Enum.UserInputType.MouseWheel then
-            currentHeight = math.clamp(currentHeight - input.Position.Z * 5, 40, 100)
+            currentHeight = math.clamp(currentHeight - input.Position.Z * 5, 50, 120) -- Higher limits for bigger board
 
-            local radius = 50 -- Match new radius
+            local radius = 70 -- Match new radius
             local x = math.sin(currentAngle) * radius
-            local z = math.cos(currentAngle) * radius
+            local z = math.cos(currentAngle) * radius - 70 -- Keep white at bottom
             local pos = Vector3.new(x, currentHeight, z)
 
             camera.CFrame = CFrame.new(pos, Vector3.new(0, 0, 0))
