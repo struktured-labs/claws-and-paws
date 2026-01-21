@@ -30,12 +30,19 @@ print("🐱 [DEBUG] Requiring TutorialManager...")
 local TutorialManager = require(script.TutorialManager)
 print("🐱 [DEBUG] Requiring CameraController...")
 local CameraController = require(script.CameraController)
+print("🐱 [DEBUG] Requiring SettingsManager...")
+local SettingsManager = require(script.SettingsManager)
 print("🐱 [DEBUG] All modules loaded!")
 
 -- Initialize logger first
 print("🐱 [DEBUG] Calling Logger.init()...")
 Logger.init()
 print("🐱 [DEBUG] Logger initialized!")
+
+-- Initialize settings
+print("🐱 [DEBUG] Initializing SettingsManager...")
+SettingsManager.init()
+print("🐱 [DEBUG] Settings initialized!")
 
 local LocalPlayer = Players.LocalPlayer
 
@@ -81,11 +88,11 @@ local ClientState = {
 }
 
 -- Board visual settings - Cat-themed!
+-- Colors will be loaded from settings
 local BoardConfig = {
     squareSize = 20, -- HUGE board for better visibility (was 12)
-    -- Fresh color scheme: teal and cream (more pleasant than brown)
-    lightColor = Color3.fromRGB(240, 248, 255), -- Alice blue (light, clean)
-    darkColor = Color3.fromRGB(64, 224, 208),    -- Turquoise (vibrant, not muddy)
+    lightColor = Color3.fromRGB(255, 248, 231), -- Will be updated from settings
+    darkColor = Color3.fromRGB(230, 145, 56),   -- Will be updated from settings
     highlightColor = Color3.fromRGB(255, 215, 0), -- Gold highlight
     validMoveColor = Color3.fromRGB(144, 238, 144), -- Light green (clear valid moves)
     lastMoveColor = Color3.fromRGB(255, 182, 193),  -- Light pink
@@ -629,8 +636,8 @@ local function createMainMenu()
 
     local frame = Instance.new("Frame")
     frame.Name = "MenuFrame"
-    frame.Size = UDim2.new(0, 300, 0, 400)
-    frame.Position = UDim2.new(0.5, -150, 0.5, -200)
+    frame.Size = UDim2.new(0, 300, 0, 460) -- Increased to fit settings button
+    frame.Position = UDim2.new(0.5, -150, 0.5, -230)
     frame.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
     frame.BorderSizePixel = 0
     frame.Parent = screenGui
@@ -697,6 +704,31 @@ local function createMainMenu()
 
         buttonY = buttonY + 50
     end
+
+    -- Settings button
+    local settingsBtn = Instance.new("TextButton")
+    settingsBtn.Name = "SettingsButton"
+    settingsBtn.Size = UDim2.new(0, 250, 0, 40)
+    settingsBtn.Position = UDim2.new(0.5, -125, 0, buttonY + 10)
+    settingsBtn.BackgroundColor3 = Color3.fromRGB(100, 100, 100)
+    settingsBtn.BorderSizePixel = 0
+    settingsBtn.Text = "⚙️ Settings"
+    settingsBtn.TextColor3 = Color3.new(1, 1, 1)
+    settingsBtn.Font = Enum.Font.GothamBold
+    settingsBtn.TextSize = 18
+    settingsBtn.Parent = frame
+
+    local settingsBtnCorner = Instance.new("UICorner")
+    settingsBtnCorner.CornerRadius = UDim.new(0, 5)
+    settingsBtnCorner.Parent = settingsBtn
+
+    settingsBtn.MouseButton1Click:Connect(function()
+        SettingsManager.createSettingsUI(function()
+            -- Callback when settings close - reapply theme
+            SettingsManager.applyToBoardConfig(BoardConfig)
+            -- Board colors will be updated when board is recreated or on next game
+        end)
+    end)
 
     return screenGui
 end
@@ -872,6 +904,10 @@ local function initialize()
     -- Set up camera
     CameraController.setupGameCamera()
     CameraController.enableCameraRotation()
+
+    -- Apply theme from settings to board config
+    print("🐱 [DEBUG] Applying color theme from settings...")
+    SettingsManager.applyToBoardConfig(BoardConfig)
 
     print("🐱 [DEBUG] Creating board...")
     local boardFolder, squares = createBoard()
