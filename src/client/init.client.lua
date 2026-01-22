@@ -85,6 +85,7 @@ local ClientState = {
     hoveredSquare = nil,
     hoverEffect = nil,
     cursorProjection = nil, -- Visual indicator showing where raycast hits
+    animationInProgress = false, -- Track if animation is running
 }
 
 -- Board visual settings - Cat-themed!
@@ -186,12 +187,17 @@ end
 local function animateMove(boardFolder, fromRow, fromCol, toRow, toCol, isCapture, pieceType, onComplete)
     print(string.format("🐱 [ANIM] Starting animation: [%d,%d] → [%d,%d]", fromRow, fromCol, toRow, toCol))
 
+    -- Mark animation as in progress
+    ClientState.animationInProgress = true
+    print("🐱 [ANIM] Set animationInProgress = true")
+
     -- Find the moving piece
     local pieceName = string.format("Piece_%d_%d", fromRow, fromCol)
     local piece = boardFolder:FindFirstChild(pieceName)
 
     if not piece then
         print("🐱 [ANIM] ERROR: Piece not found: " .. pieceName)
+        ClientState.animationInProgress = false
         if onComplete then onComplete() end
         return
     end
@@ -205,8 +211,16 @@ local function animateMove(boardFolder, fromRow, fromCol, toRow, toCol, isCaptur
     end
 
     if not mainPart then
+        ClientState.animationInProgress = false
         if onComplete then onComplete() end
         return
+    end
+
+    -- Wrap onComplete to clear animation flag
+    local wrappedComplete = function()
+        print("🐱 [ANIM] Animation complete, setting animationInProgress = false")
+        ClientState.animationInProgress = false
+        if onComplete then onComplete() end
     end
 
     local fromPos = mainPart.Position
@@ -232,10 +246,10 @@ local function animateMove(boardFolder, fromRow, fromCol, toRow, toCol, isCaptur
         end
 
         -- Use pounce animation for captures
-        BattleAnimations.pounceCapture(mainPart, fromPos, toPos, onComplete)
+        BattleAnimations.pounceCapture(mainPart, fromPos, toPos, wrappedComplete)
     else
         -- Use piece-specific animation for regular moves
-        BattleAnimations.smartMove(mainPart, fromPos, toPos, pieceType, onComplete)
+        BattleAnimations.smartMove(mainPart, fromPos, toPos, pieceType, wrappedComplete)
     end
 end
 
@@ -352,6 +366,13 @@ end
 -- Update board visuals from game state
 local function updateBoardVisuals(boardFolder, squares, gameState, skipAnimation)
     print("🐱 [UPDATE] ========== updateBoardVisuals called ==========")
+
+    -- CRITICAL: Don't update board while animation is in progress!
+    -- This would destroy the piece being animated
+    if ClientState.animationInProgress then
+        print("🐱 [UPDATE] ⚠️ SKIPPING update - animation in progress!")
+        return
+    end
 
     -- Clear existing pieces and effects
     local destroyedCount = 0
