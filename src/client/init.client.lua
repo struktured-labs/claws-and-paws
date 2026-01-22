@@ -184,14 +184,19 @@ end
 
 -- Animate a move with proper battle animations
 local function animateMove(boardFolder, fromRow, fromCol, toRow, toCol, isCapture, pieceType, onComplete)
+    print(string.format("🐱 [ANIM] Starting animation: [%d,%d] → [%d,%d]", fromRow, fromCol, toRow, toCol))
+
     -- Find the moving piece
     local pieceName = string.format("Piece_%d_%d", fromRow, fromCol)
     local piece = boardFolder:FindFirstChild(pieceName)
 
     if not piece then
+        print("🐱 [ANIM] ERROR: Piece not found: " .. pieceName)
         if onComplete then onComplete() end
         return
     end
+
+    print("🐱 [ANIM] Found piece to animate: " .. pieceName)
 
     -- Get main part for animation
     local mainPart = piece

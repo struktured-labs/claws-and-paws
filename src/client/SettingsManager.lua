@@ -5,47 +5,47 @@
 
 local SettingsManager = {}
 
--- Color theme presets
+-- Color theme presets - DIVERSE colors that contrast well with pieces!
 local COLOR_THEMES = {
+    ["Forest Floor"] = {
+        lightColor = Color3.fromRGB(144, 238, 144), -- Light green
+        darkColor = Color3.fromRGB(34, 139, 34),    -- Forest green
+        description = "Green meadow (best contrast)"
+    },
+    ["Ocean Depths"] = {
+        lightColor = Color3.fromRGB(135, 206, 235), -- Sky blue
+        darkColor = Color3.fromRGB(25, 25, 112),    -- Midnight blue
+        description = "Deep blue ocean"
+    },
+    ["Sunset Sky"] = {
+        lightColor = Color3.fromRGB(255, 182, 193), -- Light pink
+        darkColor = Color3.fromRGB(220, 20, 60),    -- Crimson
+        description = "Warm sunset colors"
+    },
+    ["Purple Majesty"] = {
+        lightColor = Color3.fromRGB(216, 191, 216), -- Thistle
+        darkColor = Color3.fromRGB(128, 0, 128),    -- Purple
+        description = "Royal purple tones"
+    },
+    ["Autumn Harvest"] = {
+        lightColor = Color3.fromRGB(255, 215, 0),   -- Gold
+        darkColor = Color3.fromRGB(184, 134, 11),   -- Dark goldenrod
+        description = "Golden autumn leaves"
+    },
+    ["Coral Reef"] = {
+        lightColor = Color3.fromRGB(255, 160, 122), -- Light coral
+        darkColor = Color3.fromRGB(255, 99, 71),    -- Tomato red
+        description = "Tropical coral colors"
+    },
+    ["Tuxedo Cat"] = {
+        lightColor = Color3.fromRGB(200, 200, 200), -- Light gray
+        darkColor = Color3.fromRGB(40, 40, 40),     -- Charcoal
+        description = "Classic gray and charcoal"
+    },
     ["Orange Tabby"] = {
-        lightColor = Color3.fromRGB(255, 248, 231), -- Warm cream
-        darkColor = Color3.fromRGB(230, 145, 56),   -- Ginger orange
-        description = "Warm and cozy like an orange tabby cat"
-    },
-    ["Siamese"] = {
-        lightColor = Color3.fromRGB(255, 248, 231), -- Warm cream
-        darkColor = Color3.fromRGB(139, 90, 60),    -- Chocolate brown
-        description = "Elegant chocolate and cream"
-    },
-    ["Gray Tabby"] = {
-        lightColor = Color3.fromRGB(245, 245, 245), -- Light gray
-        darkColor = Color3.fromRGB(128, 128, 128),  -- Silver gray
-        description = "Cool and sophisticated"
-    },
-    ["Calico"] = {
-        lightColor = Color3.fromRGB(255, 250, 240), -- Ivory white
-        darkColor = Color3.fromRGB(255, 160, 122),  -- Light coral/peachy
-        description = "Playful peach and cream"
-    },
-    ["Tuxedo"] = {
-        lightColor = Color3.fromRGB(250, 250, 250), -- Almost white
-        darkColor = Color3.fromRGB(40, 40, 40),     -- Almost black
-        description = "Classic black and white elegance"
-    },
-    ["Russian Blue"] = {
-        lightColor = Color3.fromRGB(230, 235, 240), -- Light blue-gray
-        darkColor = Color3.fromRGB(100, 120, 140),  -- Blue-gray
-        description = "Cool blue-gray tones"
-    },
-    ["Pink Princess"] = {
-        lightColor = Color3.fromRGB(255, 240, 245), -- Very light pink
-        darkColor = Color3.fromRGB(255, 192, 203),  -- Classic pink
-        description = "Soft and adorable pink tones"
-    },
-    ["Mint Chip"] = {
-        lightColor = Color3.fromRGB(245, 255, 250), -- Mint cream
-        darkColor = Color3.fromRGB(152, 251, 152),  -- Pale green
-        description = "Fresh mint green"
+        lightColor = Color3.fromRGB(255, 228, 181), -- Moccasin
+        darkColor = Color3.fromRGB(210, 105, 30),   -- Chocolate orange
+        description = "Warm tabby cat colors"
     },
 }
 
