@@ -104,12 +104,16 @@ function GameSession:broadcastState()
     local state = self.engine:serialize()
     state.timeRemaining = self.timeRemaining
     state.gameId = self.id
+    state.playerColor = Constants.Color.WHITE -- Always white for AI games
 
-    -- Debug: Count pieces
+    -- Debug: Count and LOG pieces being sent
     local pieceCount = 0
+    print("🐱 [SERVER] Pieces in state BEFORE broadcast:")
     for row = 1, Constants.BOARD_SIZE do
         for col = 1, Constants.BOARD_SIZE do
             if state.board[row] and state.board[row][col] then
+                local piece = state.board[row][col]
+                print(string.format("🐱 [SERVER]   [%d,%d]: type=%d color=%d", row, col, piece.type, piece.color))
                 pieceCount = pieceCount + 1
             end
         end
