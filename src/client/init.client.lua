@@ -1157,8 +1157,8 @@ local function initialize()
                 projection.Position = square.Position + Vector3.new(0, 0.4, 0) -- Slightly above square
                 projection.Anchored = true
                 projection.CanCollide = false
-                projection.Transparency = 0.7
-                projection.Color = Color3.fromRGB(255, 255, 255) -- White glow
+                projection.Transparency = 0.5
+                projection.Color = Color3.fromRGB(0, 255, 255) -- Cyan - stands out from everything!
                 projection.Material = Enum.Material.Neon
                 projection.Parent = boardFolder
                 ClientState.cursorProjection = projection
