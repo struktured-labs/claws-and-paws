@@ -1131,19 +1131,20 @@ local function formatTime(seconds)
     return string.format("%d:%02d", mins, secs)
 end
 
--- Get piece symbol for miniboard display
+-- Get piece letter for miniboard display (Roblox doesn't render Unicode chess symbols)
 local function getPieceSymbol(pieceType, color)
-    local symbols = {
-        [Constants.PieceType.KING] = {white = "♔", black = "♚"},
-        [Constants.PieceType.QUEEN] = {white = "♕", black = "♛"},
-        [Constants.PieceType.ROOK] = {white = "♖", black = "♜"},
-        [Constants.PieceType.BISHOP] = {white = "♗", black = "♝"},
-        [Constants.PieceType.KNIGHT] = {white = "♘", black = "♞"},
-        [Constants.PieceType.PAWN] = {white = "♙", black = "♟"},
+    local letters = {
+        [Constants.PieceType.KING] = "K",
+        [Constants.PieceType.QUEEN] = "Q",
+        [Constants.PieceType.ROOK] = "R",
+        [Constants.PieceType.BISHOP] = "B",
+        [Constants.PieceType.KNIGHT] = "N",
+        [Constants.PieceType.PAWN] = "P",
+        [Constants.PieceType.ARCHBISHOP] = "A",
+        [Constants.PieceType.CHANCELLOR] = "C",
+        [Constants.PieceType.AMAZON] = "Z",
     }
-    local pieceSymbols = symbols[pieceType]
-    if not pieceSymbols then return "" end
-    return color == Constants.Color.WHITE and pieceSymbols.white or pieceSymbols.black
+    return letters[pieceType] or "?"
 end
 
 -- Create 2D miniboard component
