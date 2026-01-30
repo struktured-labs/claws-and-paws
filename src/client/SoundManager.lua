@@ -106,6 +106,14 @@ function SoundManager.playSelectSound()
     sound:Play()
 end
 
+-- Play dismissive sound (can't move this piece / illegal move)
+function SoundManager.playDismissiveSound()
+    local sound = getSound(SOUNDS.MEOW_CURIOUS)
+    sound.Volume = 0.4
+    sound.PlaybackSpeed = 0.7  -- Lower pitch = annoyed "meh" sound
+    sound:Play()
+end
+
 -- Play check/threat sound
 function SoundManager.playCheckSound()
     local sound = getSound(SOUNDS.GROWL)

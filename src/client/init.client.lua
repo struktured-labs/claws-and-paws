@@ -71,6 +71,8 @@ local SendGestureEvent = Remotes:WaitForChild("SendGesture")
 print("🐱 [DEBUG] Got SendGesture")
 local RequestAIGameEvent = Remotes:WaitForChild("RequestAIGame")
 print("🐱 [DEBUG] Got RequestAIGame")
+local RequestAIvsAIGameEvent = Remotes:WaitForChild("RequestAIvsAIGame")
+print("🐱 [DEBUG] Got RequestAIvsAIGame")
 local GetGameStateFunction = Remotes:WaitForChild("GetGameState")
 print("🐱 [DEBUG] Got GetGameState - all remotes loaded!")
 
@@ -86,6 +88,12 @@ local ClientState = {
     hoverEffect = nil,
     cursorProjection = nil, -- Visual indicator showing where raycast hits
     animationInProgress = false, -- Track if animation is running
+    isAIvsAI = false, -- Track if we're spectating AI vs AI
+    -- Chess clock state for local interpolation
+    localTimeWhite = 600,
+    localTimeBlack = 600,
+    lastClockUpdate = 0,
+    clockRunning = false,
 }
 
 -- Board visual settings - Cat-themed!
@@ -216,9 +224,17 @@ local function animateMove(boardFolder, fromRow, fromCol, toRow, toCol, isCaptur
         return
     end
 
-    -- Wrap onComplete to clear animation flag
+    -- Wrap onComplete to clean up animated piece and clear animation flag
     local wrappedComplete = function()
-        print("🐱 [ANIM] Animation complete, setting animationInProgress = false")
+        print("🐱 [ANIM] Animation complete, cleaning up and setting animationInProgress = false")
+
+        -- CRITICAL: Destroy the animated piece BEFORE calling onComplete
+        -- This prevents duplicate pieces (old animated piece + new piece from updateBoardVisuals)
+        if piece and piece.Parent then
+            print(string.format("🐱 [ANIM] Destroying animated piece: %s", pieceName))
+            piece:Destroy()
+        end
+
         ClientState.animationInProgress = false
         if onComplete then onComplete() end
     end
@@ -230,23 +246,55 @@ local function animateMove(boardFolder, fromRow, fromCol, toRow, toCol, isCaptur
         (toRow - 3.5) * BoardConfig.squareSize
     )
 
-    -- If this is a capture, remove the target piece with animation
+    -- If this is a capture, play dramatic cat fight animation
     if isCapture then
         local targetPieceName = string.format("Piece_%d_%d", toRow, toCol)
         local targetPiece = boardFolder:FindFirstChild(targetPieceName)
+        local targetPart = nil
         if targetPiece then
-            local targetPart = targetPiece
+            print(string.format("🐱 [ANIM] Found target piece for fight: %s", targetPieceName))
             if targetPiece:IsA("Model") then
                 targetPart = targetPiece.PrimaryPart or targetPiece:FindFirstChildWhichIsA("BasePart")
-            end
-
-            if targetPart then
-                BattleAnimations.fadeOutCapture(targetPart)
+            else
+                targetPart = targetPiece
             end
         end
 
-        -- Use pounce animation for captures
-        BattleAnimations.pounceCapture(mainPart, fromPos, toPos, wrappedComplete)
+        -- Show "Click to skip" hint
+        local skipHint = Instance.new("TextLabel")
+        skipHint.Name = "SkipHint"
+        skipHint.Size = UDim2.new(0, 200, 0, 30)
+        skipHint.Position = UDim2.new(0.5, -100, 0.85, 0)
+        skipHint.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+        skipHint.BackgroundTransparency = 0.3
+        skipHint.Text = "Click to skip animation"
+        skipHint.TextColor3 = Color3.fromRGB(200, 200, 200)
+        skipHint.Font = Enum.Font.GothamBold
+        skipHint.TextSize = 14
+        skipHint.Parent = LocalPlayer.PlayerGui:FindFirstChild("GameHUD") or LocalPlayer.PlayerGui
+
+        local skipCorner = Instance.new("UICorner")
+        skipCorner.CornerRadius = UDim.new(0, 6)
+        skipCorner.Parent = skipHint
+
+        -- Use the dramatic catFight animation
+        BattleAnimations.catFight(mainPart, targetPart, fromPos, toPos, function()
+            -- Clean up skip hint
+            if skipHint and skipHint.Parent then
+                skipHint:Destroy()
+            end
+            -- Destroy defender after fight
+            if targetPiece and targetPiece.Parent then
+                targetPiece:Destroy()
+            end
+            -- Clean up any lingering dust clouds
+            for _, child in ipairs(workspace:GetChildren()) do
+                if child.Name == "FightDustCloud" then
+                    child:Destroy()
+                end
+            end
+            wrappedComplete()
+        end)
     else
         -- Use piece-specific animation for regular moves
         BattleAnimations.smartMove(mainPart, fromPos, toPos, pieceType, wrappedComplete)
@@ -342,6 +390,88 @@ local function createBoard()
         border.Parent = boardFolder
     end
 
+    -- Add chess coordinates (A-F columns, 1-6 rows)
+    local coordFolder = Instance.new("Folder")
+    coordFolder.Name = "Coordinates"
+    coordFolder.Parent = boardFolder
+
+    -- Column labels (A-F) along the bottom
+    local colLabels = {"A", "B", "C", "D", "E", "F"}
+    for col = 1, Constants.BOARD_SIZE do
+        local label = Instance.new("TextLabel")
+        label.Name = "ColLabel_" .. col
+        label.Size = UDim2.new(0, 30, 0, 20)
+        label.BackgroundTransparency = 1
+        label.Text = colLabels[col]
+        label.TextColor3 = Color3.fromRGB(255, 255, 255)
+        label.TextStrokeTransparency = 0.5
+        label.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+        label.Font = Enum.Font.GothamBold
+        label.TextSize = 16
+
+        -- Create BillboardGui for 3D positioning
+        local billboard = Instance.new("BillboardGui")
+        billboard.Name = "ColBillboard_" .. col
+        billboard.Size = UDim2.new(0, 30, 0, 20)
+        billboard.StudsOffset = Vector3.new(0, 0.5, 0)
+        billboard.AlwaysOnTop = true
+        billboard.Parent = boardFolder
+
+        -- Position at bottom of board
+        local anchor = Instance.new("Part")
+        anchor.Name = "ColAnchor_" .. col
+        anchor.Size = Vector3.new(0.1, 0.1, 0.1)
+        anchor.Position = Vector3.new(
+            (col - 3.5) * BoardConfig.squareSize,
+            0.3,
+            (Constants.BOARD_SIZE - 3.5 + 0.7) * BoardConfig.squareSize
+        )
+        anchor.Transparency = 1
+        anchor.Anchored = true
+        anchor.CanCollide = false
+        anchor.Parent = coordFolder
+
+        billboard.Adornee = anchor
+        label.Parent = billboard
+    end
+
+    -- Row labels (1-6) along the left side
+    for row = 1, Constants.BOARD_SIZE do
+        local label = Instance.new("TextLabel")
+        label.Name = "RowLabel_" .. row
+        label.Size = UDim2.new(0, 20, 0, 20)
+        label.BackgroundTransparency = 1
+        label.Text = tostring(row)
+        label.TextColor3 = Color3.fromRGB(255, 255, 255)
+        label.TextStrokeTransparency = 0.5
+        label.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+        label.Font = Enum.Font.GothamBold
+        label.TextSize = 16
+
+        local billboard = Instance.new("BillboardGui")
+        billboard.Name = "RowBillboard_" .. row
+        billboard.Size = UDim2.new(0, 20, 0, 20)
+        billboard.StudsOffset = Vector3.new(0, 0.5, 0)
+        billboard.AlwaysOnTop = true
+        billboard.Parent = boardFolder
+
+        local anchor = Instance.new("Part")
+        anchor.Name = "RowAnchor_" .. row
+        anchor.Size = Vector3.new(0.1, 0.1, 0.1)
+        anchor.Position = Vector3.new(
+            (-3.5 - 0.7) * BoardConfig.squareSize,
+            0.3,
+            (row - 3.5) * BoardConfig.squareSize
+        )
+        anchor.Transparency = 1
+        anchor.Anchored = true
+        anchor.CanCollide = false
+        anchor.Parent = coordFolder
+
+        billboard.Adornee = anchor
+        label.Parent = billboard
+    end
+
     return boardFolder, squares
 end
 
@@ -397,33 +527,23 @@ local function updateBoardVisuals(boardFolder, squares, gameState, skipAnimation
         end
     end
 
-    if not gameState or not gameState.board then
-        warn("🐱 [UPDATE] ⚠️ No game state or board to render!")
+    if not gameState or not gameState.pieces then
+        warn("🐱 [UPDATE] ⚠️ No game state or pieces to render!")
         return
     end
 
-    -- Debug: Count and LIST all pieces in board state
-    local pieceCount = 0
-    print("🐱 [UPDATE] Pieces in game state:")
-    for row = 1, Constants.BOARD_SIZE do
-        for col = 1, Constants.BOARD_SIZE do
-            if gameState.board[row] and gameState.board[row][col] then
-                local piece = gameState.board[row][col]
-                print(string.format("🐱 [UPDATE]   [%d,%d]: type=%d color=%d", row, col, piece.type, piece.color))
-                pieceCount = pieceCount + 1
-            end
-        end
+    -- Debug: Count and LIST all pieces in flat array state
+    print(string.format("🐱 [UPDATE] Received %d pieces in flat array format:", #gameState.pieces))
+    for _, piece in ipairs(gameState.pieces) do
+        print(string.format("🐱 [UPDATE]   [%d,%d]: type=%d color=%d", piece.row, piece.col, piece.type, piece.color))
     end
-    print("🐱 [UPDATE] Total pieces in state: " .. pieceCount)
 
-    -- Place pieces
-    for row = 1, Constants.BOARD_SIZE do
-        for col = 1, Constants.BOARD_SIZE do
-            local pieceData = gameState.board[row] and gameState.board[row][col]
-            if pieceData then
-                local pieceModel = createPieceModel(pieceData.type, pieceData.color)
-                print("🐱 [DEBUG] Created piece at [" .. row .. "," .. col .. "]: type=" .. pieceData.type .. " color=" .. pieceData.color)
-                pieceModel.Name = string.format("Piece_%d_%d", row, col)
+    -- Place pieces from flat array
+    for _, pieceData in ipairs(gameState.pieces) do
+        local row, col = pieceData.row, pieceData.col
+        local pieceModel = createPieceModel(pieceData.type, pieceData.color)
+        print("🐱 [DEBUG] Created piece at [" .. row .. "," .. col .. "]: type=" .. pieceData.type .. " color=" .. pieceData.color)
+        pieceModel.Name = string.format("Piece_%d_%d", row, col)
 
                 -- IMPORTANT: Parent FIRST, then position
                 pieceModel.Parent = boardFolder
@@ -462,8 +582,6 @@ local function updateBoardVisuals(boardFolder, squares, gameState, skipAnimation
                         startIdleAnimation(pieceModel)
                     end
                 end
-            end
-        end
     end
 
     -- Update square colors
@@ -499,6 +617,17 @@ local function updateBoardVisuals(boardFolder, squares, gameState, skipAnimation
     end
 end
 
+-- Helper: Find piece at position in flat array
+local function getPieceAt(gameState, row, col)
+    if not gameState or not gameState.pieces then return nil end
+    for _, piece in ipairs(gameState.pieces) do
+        if piece.row == row and piece.col == col then
+            return piece
+        end
+    end
+    return nil
+end
+
 -- Handle square click
 local function onSquareClicked(row, col, boardFolder, squares)
     if not ClientState.gameState or ClientState.gameState.gameState ~= Constants.GameState.IN_PROGRESS then
@@ -509,7 +638,7 @@ local function onSquareClicked(row, col, boardFolder, squares)
         return
     end
 
-    local pieceData = ClientState.gameState.board[row] and ClientState.gameState.board[row][col]
+    local pieceData = getPieceAt(ClientState.gameState, row, col)
 
     if ClientState.selectedSquare then
         -- Check if this is a valid move
@@ -533,13 +662,13 @@ local function onSquareClicked(row, col, boardFolder, squares)
 
         if isValidMove then
             -- Check if this is a capture
-            local targetPiece = ClientState.gameState.board[row] and ClientState.gameState.board[row][col]
+            local targetPiece = getPieceAt(ClientState.gameState, row, col)
             local isCapture = targetPiece ~= nil
 
             -- Get the moving piece type
             local fromRow = ClientState.selectedSquare.row
             local fromCol = ClientState.selectedSquare.col
-            local movingPiece = ClientState.gameState.board[fromRow] and ClientState.gameState.board[fromRow][fromCol]
+            local movingPiece = getPieceAt(ClientState.gameState, fromRow, fromCol)
             local movingPieceType = movingPiece and movingPiece.type
 
             -- Animate the move first
@@ -577,28 +706,45 @@ local function onSquareClicked(row, col, boardFolder, squares)
             ClientState.selectedSquare = nil
             ClientState.validMoves = {}
         elseif pieceData and pieceData.color == ClientState.playerColor then
-            -- Select new piece
-            SoundManager.playSelectSound()
-            ClientState.selectedSquare = {row = row, col = col}
-            -- Calculate valid moves locally for visual feedback
+            -- Select new piece - but check if it can move first
             local engine = Shared.ChessEngine.new()
             engine:deserialize(ClientState.gameState)
-            ClientState.validMoves = engine:getValidMoves(row, col)
+            local validMoves = engine:getValidMoves(row, col)
+
+            if #validMoves == 0 then
+                -- Piece has no valid moves
+                SoundManager.playDismissiveSound()
+                return
+            end
+
+            SoundManager.playSelectSound()
+            ClientState.selectedSquare = {row = row, col = col}
+            ClientState.validMoves = validMoves
         else
-            -- Deselect
+            -- Invalid click (not a valid move, not our piece) - play dismissive sound
+            SoundManager.playDismissiveSound()
             ClientState.selectedSquare = nil
             ClientState.validMoves = {}
         end
     else
         -- Select piece if it's ours
         if pieceData and pieceData.color == ClientState.playerColor then
+            -- Calculate valid moves BEFORE selecting
+            local engine = Shared.ChessEngine.new()
+            engine:deserialize(ClientState.gameState)
+            local validMoves = engine:getValidMoves(row, col)
+
+            if #validMoves == 0 then
+                -- Piece has no valid moves! Play dismissive cat sound
+                Logger.debug(string.format("Piece at [%d,%d] has no valid moves - cannot select", row, col))
+                SoundManager.playDismissiveSound()  -- Cute "meh" cat noise
+                return
+            end
+
             Logger.info(string.format("Selected piece at [%d,%d], type: %d", row, col, pieceData.type))
             SoundManager.playSelectSound()
             ClientState.selectedSquare = {row = row, col = col}
-            -- Calculate valid moves locally for visual feedback
-            local engine = Shared.ChessEngine.new()
-            engine:deserialize(ClientState.gameState)
-            ClientState.validMoves = engine:getValidMoves(row, col)
+            ClientState.validMoves = validMoves
             print("🐱 [DEBUG] Selected piece, found " .. #ClientState.validMoves .. " valid moves")
             if ClientState.validMoves and #ClientState.validMoves > 0 then
                 for i, move in ipairs(ClientState.validMoves) do
@@ -653,6 +799,195 @@ local function onSquareClicked(row, col, boardFolder, squares)
     end
 end
 
+-- Create AI vs AI difficulty selector popup
+local function createAIvsAIPopup(mainMenuFrame)
+    local popup = Instance.new("Frame")
+    popup.Name = "AIvsAIPopup"
+    popup.Size = UDim2.new(0, 320, 0, 280)
+    popup.Position = UDim2.new(0.5, -160, 0.5, -140)
+    popup.BackgroundColor3 = Color3.fromRGB(50, 50, 60)
+    popup.BorderSizePixel = 0
+    popup.Visible = false
+    popup.Parent = mainMenuFrame.Parent
+
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 10)
+    corner.Parent = popup
+
+    local stroke = Instance.new("UIStroke")
+    stroke.Color = Color3.fromRGB(255, 200, 100)
+    stroke.Thickness = 2
+    stroke.Parent = popup
+
+    local title = Instance.new("TextLabel")
+    title.Name = "Title"
+    title.Size = UDim2.new(1, 0, 0, 40)
+    title.BackgroundTransparency = 1
+    title.Text = "🤖 Watch AI vs AI 🤖"
+    title.TextColor3 = Color3.fromRGB(255, 200, 100)
+    title.Font = Enum.Font.FredokaOne
+    title.TextSize = 24
+    title.Parent = popup
+
+    -- Difficulty options
+    local difficulties = {
+        {text = "Easy", mode = Constants.GameMode.AI_EASY},
+        {text = "Medium", mode = Constants.GameMode.AI_MEDIUM},
+        {text = "Hard", mode = Constants.GameMode.AI_HARD},
+    }
+
+    -- Selected difficulties
+    local selectedWhite = Constants.GameMode.AI_MEDIUM
+    local selectedBlack = Constants.GameMode.AI_MEDIUM
+
+    -- White AI selector
+    local whiteLabel = Instance.new("TextLabel")
+    whiteLabel.Name = "WhiteLabel"
+    whiteLabel.Size = UDim2.new(0, 280, 0, 25)
+    whiteLabel.Position = UDim2.new(0.5, -140, 0, 45)
+    whiteLabel.BackgroundTransparency = 1
+    whiteLabel.Text = "White AI Difficulty:"
+    whiteLabel.TextColor3 = Color3.fromRGB(240, 240, 240)
+    whiteLabel.Font = Enum.Font.GothamBold
+    whiteLabel.TextSize = 16
+    whiteLabel.TextXAlignment = Enum.TextXAlignment.Left
+    whiteLabel.Parent = popup
+
+    local whiteButtons = {}
+    for i, diff in ipairs(difficulties) do
+        local btn = Instance.new("TextButton")
+        btn.Name = "White_" .. diff.mode
+        btn.Size = UDim2.new(0, 85, 0, 32)
+        btn.Position = UDim2.new(0, 15 + (i - 1) * 95, 0, 75)
+        btn.BackgroundColor3 = diff.mode == selectedWhite
+            and Color3.fromRGB(100, 180, 100)
+            or Color3.fromRGB(80, 80, 100)
+        btn.BorderSizePixel = 0
+        btn.Text = diff.text
+        btn.TextColor3 = Color3.new(1, 1, 1)
+        btn.Font = Enum.Font.GothamBold
+        btn.TextSize = 14
+        btn.Parent = popup
+
+        local btnCorner = Instance.new("UICorner")
+        btnCorner.CornerRadius = UDim.new(0, 5)
+        btnCorner.Parent = btn
+
+        whiteButtons[diff.mode] = btn
+
+        btn.MouseButton1Click:Connect(function()
+            selectedWhite = diff.mode
+            for mode, b in pairs(whiteButtons) do
+                b.BackgroundColor3 = mode == selectedWhite
+                    and Color3.fromRGB(100, 180, 100)
+                    or Color3.fromRGB(80, 80, 100)
+            end
+            SoundManager.playSelectSound()
+        end)
+    end
+
+    -- Black AI selector
+    local blackLabel = Instance.new("TextLabel")
+    blackLabel.Name = "BlackLabel"
+    blackLabel.Size = UDim2.new(0, 280, 0, 25)
+    blackLabel.Position = UDim2.new(0.5, -140, 0, 120)
+    blackLabel.BackgroundTransparency = 1
+    blackLabel.Text = "Black AI Difficulty:"
+    blackLabel.TextColor3 = Color3.fromRGB(80, 80, 80)
+    blackLabel.Font = Enum.Font.GothamBold
+    blackLabel.TextSize = 16
+    blackLabel.TextXAlignment = Enum.TextXAlignment.Left
+    blackLabel.Parent = popup
+
+    local blackButtons = {}
+    for i, diff in ipairs(difficulties) do
+        local btn = Instance.new("TextButton")
+        btn.Name = "Black_" .. diff.mode
+        btn.Size = UDim2.new(0, 85, 0, 32)
+        btn.Position = UDim2.new(0, 15 + (i - 1) * 95, 0, 150)
+        btn.BackgroundColor3 = diff.mode == selectedBlack
+            and Color3.fromRGB(60, 60, 60)
+            or Color3.fromRGB(80, 80, 100)
+        btn.BorderSizePixel = 0
+        btn.Text = diff.text
+        btn.TextColor3 = Color3.new(1, 1, 1)
+        btn.Font = Enum.Font.GothamBold
+        btn.TextSize = 14
+        btn.Parent = popup
+
+        local btnCorner = Instance.new("UICorner")
+        btnCorner.CornerRadius = UDim.new(0, 5)
+        btnCorner.Parent = btn
+
+        blackButtons[diff.mode] = btn
+
+        btn.MouseButton1Click:Connect(function()
+            selectedBlack = diff.mode
+            for mode, b in pairs(blackButtons) do
+                b.BackgroundColor3 = mode == selectedBlack
+                    and Color3.fromRGB(60, 60, 60)
+                    or Color3.fromRGB(80, 80, 100)
+            end
+            SoundManager.playSelectSound()
+        end)
+    end
+
+    -- Start button
+    local startBtn = Instance.new("TextButton")
+    startBtn.Name = "StartButton"
+    startBtn.Size = UDim2.new(0, 200, 0, 40)
+    startBtn.Position = UDim2.new(0.5, -100, 0, 195)
+    startBtn.BackgroundColor3 = Color3.fromRGB(80, 180, 80)
+    startBtn.BorderSizePixel = 0
+    startBtn.Text = "▶️ Start Match"
+    startBtn.TextColor3 = Color3.new(1, 1, 1)
+    startBtn.Font = Enum.Font.FredokaOne
+    startBtn.TextSize = 20
+    startBtn.Parent = popup
+
+    local startCorner = Instance.new("UICorner")
+    startCorner.CornerRadius = UDim.new(0, 8)
+    startCorner.Parent = startBtn
+
+    startBtn.MouseButton1Click:Connect(function()
+        print(string.format("🐱 [CLIENT] Starting AI vs AI: White=%s, Black=%s", selectedWhite, selectedBlack))
+        RequestAIvsAIGameEvent:FireServer(selectedWhite, selectedBlack)
+        -- Play music based on the harder AI difficulty
+        local harderDifficulty = selectedWhite
+        if selectedBlack == Constants.GameMode.AI_HARD or selectedWhite == Constants.GameMode.AI_HARD then
+            harderDifficulty = Constants.GameMode.AI_HARD
+        elseif selectedBlack == Constants.GameMode.AI_MEDIUM or selectedWhite == Constants.GameMode.AI_MEDIUM then
+            harderDifficulty = Constants.GameMode.AI_MEDIUM
+        end
+        MusicManager.playForGameMode(harderDifficulty)
+        popup.Visible = false
+        mainMenuFrame.Visible = false
+    end)
+
+    -- Cancel button
+    local cancelBtn = Instance.new("TextButton")
+    cancelBtn.Name = "CancelButton"
+    cancelBtn.Size = UDim2.new(0, 80, 0, 30)
+    cancelBtn.Position = UDim2.new(0.5, -40, 0, 240)
+    cancelBtn.BackgroundColor3 = Color3.fromRGB(120, 80, 80)
+    cancelBtn.BorderSizePixel = 0
+    cancelBtn.Text = "Cancel"
+    cancelBtn.TextColor3 = Color3.new(1, 1, 1)
+    cancelBtn.Font = Enum.Font.GothamBold
+    cancelBtn.TextSize = 14
+    cancelBtn.Parent = popup
+
+    local cancelCorner = Instance.new("UICorner")
+    cancelCorner.CornerRadius = UDim.new(0, 5)
+    cancelCorner.Parent = cancelBtn
+
+    cancelBtn.MouseButton1Click:Connect(function()
+        popup.Visible = false
+    end)
+
+    return popup
+end
+
 -- Create main menu UI
 local function createMainMenu()
     local screenGui = Instance.new("ScreenGui")
@@ -662,8 +997,8 @@ local function createMainMenu()
 
     local frame = Instance.new("Frame")
     frame.Name = "MenuFrame"
-    frame.Size = UDim2.new(0, 300, 0, 460) -- Increased to fit settings button
-    frame.Position = UDim2.new(0.5, -150, 0.5, -230)
+    frame.Size = UDim2.new(0, 300, 0, 510) -- Increased to fit AI vs AI button
+    frame.Position = UDim2.new(0.5, -150, 0.5, -255)
     frame.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
     frame.BorderSizePixel = 0
     frame.Parent = screenGui
@@ -725,11 +1060,40 @@ local function createMainMenu()
             else
                 RequestMatchEvent:FireServer(btnData.mode)
             end
+            -- Switch music based on game mode
+            MusicManager.playForGameMode(btnData.mode)
             frame.Visible = false
         end)
 
         buttonY = buttonY + 50
     end
+
+    -- Watch AI vs AI button (special styling)
+    local aiVsAiBtn = Instance.new("TextButton")
+    aiVsAiBtn.Name = "AIvsAIButton"
+    aiVsAiBtn.Size = UDim2.new(0, 250, 0, 40)
+    aiVsAiBtn.Position = UDim2.new(0.5, -125, 0, buttonY)
+    aiVsAiBtn.BackgroundColor3 = Color3.fromRGB(180, 100, 180)  -- Purple for AI vs AI
+    aiVsAiBtn.BorderSizePixel = 0
+    aiVsAiBtn.Text = "🤖 Watch AI vs AI"
+    aiVsAiBtn.TextColor3 = Color3.new(1, 1, 1)
+    aiVsAiBtn.Font = Enum.Font.GothamBold
+    aiVsAiBtn.TextSize = 18
+    aiVsAiBtn.Parent = frame
+
+    local aiVsAiCorner = Instance.new("UICorner")
+    aiVsAiCorner.CornerRadius = UDim.new(0, 5)
+    aiVsAiCorner.Parent = aiVsAiBtn
+
+    -- Create the AI vs AI popup (hidden by default)
+    local aiVsAiPopup = createAIvsAIPopup(frame)
+
+    aiVsAiBtn.MouseButton1Click:Connect(function()
+        aiVsAiPopup.Visible = true
+        SoundManager.playSelectSound()
+    end)
+
+    buttonY = buttonY + 50
 
     -- Settings button
     local settingsBtn = Instance.new("TextButton")
@@ -757,6 +1121,226 @@ local function createMainMenu()
     end)
 
     return screenGui
+end
+
+-- Format time as MM:SS
+local function formatTime(seconds)
+    if not seconds or seconds < 0 then seconds = 0 end
+    local mins = math.floor(seconds / 60)
+    local secs = math.floor(seconds % 60)
+    return string.format("%d:%02d", mins, secs)
+end
+
+-- Get piece symbol for miniboard display
+local function getPieceSymbol(pieceType, color)
+    local symbols = {
+        [Constants.PieceType.KING] = {white = "♔", black = "♚"},
+        [Constants.PieceType.QUEEN] = {white = "♕", black = "♛"},
+        [Constants.PieceType.ROOK] = {white = "♖", black = "♜"},
+        [Constants.PieceType.BISHOP] = {white = "♗", black = "♝"},
+        [Constants.PieceType.KNIGHT] = {white = "♘", black = "♞"},
+        [Constants.PieceType.PAWN] = {white = "♙", black = "♟"},
+    }
+    local pieceSymbols = symbols[pieceType]
+    if not pieceSymbols then return "" end
+    return color == Constants.Color.WHITE and pieceSymbols.white or pieceSymbols.black
+end
+
+-- Create 2D miniboard component
+local function createMiniboard(parent)
+    local MINI_SQUARE_SIZE = 28
+    local BOARD_SIZE = Constants.BOARD_SIZE
+
+    -- Container frame
+    local container = Instance.new("Frame")
+    container.Name = "MiniboardContainer"
+    container.Size = UDim2.new(0, MINI_SQUARE_SIZE * BOARD_SIZE + 20, 0, MINI_SQUARE_SIZE * BOARD_SIZE + 50)
+    container.Position = UDim2.new(1, -200, 0.5, -100)
+    container.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
+    container.BackgroundTransparency = 0.1
+    container.Parent = parent
+
+    local containerCorner = Instance.new("UICorner")
+    containerCorner.CornerRadius = UDim.new(0, 10)
+    containerCorner.Parent = container
+
+    local containerStroke = Instance.new("UIStroke")
+    containerStroke.Color = Color3.fromRGB(80, 80, 90)
+    containerStroke.Thickness = 2
+    containerStroke.Parent = container
+
+    -- Title with toggle button
+    local titleBar = Instance.new("Frame")
+    titleBar.Name = "TitleBar"
+    titleBar.Size = UDim2.new(1, 0, 0, 25)
+    titleBar.BackgroundTransparency = 1
+    titleBar.Parent = container
+
+    local title = Instance.new("TextLabel")
+    title.Name = "Title"
+    title.Size = UDim2.new(1, -30, 1, 0)
+    title.BackgroundTransparency = 1
+    title.Text = "🗺️ Mini Map"
+    title.TextColor3 = Color3.fromRGB(200, 200, 200)
+    title.Font = Enum.Font.GothamBold
+    title.TextSize = 14
+    title.Parent = titleBar
+
+    -- Toggle button (minimize/maximize)
+    local toggleBtn = Instance.new("TextButton")
+    toggleBtn.Name = "ToggleButton"
+    toggleBtn.Size = UDim2.new(0, 25, 0, 25)
+    toggleBtn.Position = UDim2.new(1, -28, 0, 0)
+    toggleBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 70)
+    toggleBtn.BorderSizePixel = 0
+    toggleBtn.Text = "−"
+    toggleBtn.TextColor3 = Color3.fromRGB(200, 200, 200)
+    toggleBtn.Font = Enum.Font.GothamBold
+    toggleBtn.TextSize = 18
+    toggleBtn.Parent = titleBar
+
+    local toggleCorner = Instance.new("UICorner")
+    toggleCorner.CornerRadius = UDim.new(0, 4)
+    toggleCorner.Parent = toggleBtn
+
+    -- Board frame
+    local boardFrame = Instance.new("Frame")
+    boardFrame.Name = "BoardFrame"
+    boardFrame.Size = UDim2.new(0, MINI_SQUARE_SIZE * BOARD_SIZE, 0, MINI_SQUARE_SIZE * BOARD_SIZE)
+    boardFrame.Position = UDim2.new(0.5, -(MINI_SQUARE_SIZE * BOARD_SIZE) / 2, 0, 30)
+    boardFrame.BackgroundColor3 = Color3.fromRGB(50, 50, 55)
+    boardFrame.Parent = container
+
+    local boardCorner = Instance.new("UICorner")
+    boardCorner.CornerRadius = UDim.new(0, 4)
+    boardCorner.Parent = boardFrame
+
+    -- Create grid of squares
+    local squares = {}
+    local lightColor = Color3.fromRGB(240, 217, 181)  -- Classic chess light
+    local darkColor = Color3.fromRGB(181, 136, 99)    -- Classic chess dark
+
+    for row = 1, BOARD_SIZE do
+        squares[row] = {}
+        for col = 1, BOARD_SIZE do
+            local square = Instance.new("Frame")
+            square.Name = string.format("MiniSquare_%d_%d", row, col)
+            -- Flip the display so white is at bottom (row 1 at bottom)
+            local displayRow = BOARD_SIZE - row + 1
+            square.Size = UDim2.new(0, MINI_SQUARE_SIZE, 0, MINI_SQUARE_SIZE)
+            square.Position = UDim2.new(0, (col - 1) * MINI_SQUARE_SIZE, 0, (displayRow - 1) * MINI_SQUARE_SIZE)
+            square.BackgroundColor3 = ((row + col) % 2 == 0) and lightColor or darkColor
+            square.BorderSizePixel = 0
+            square.Parent = boardFrame
+
+            -- Piece label
+            local pieceLabel = Instance.new("TextLabel")
+            pieceLabel.Name = "PieceLabel"
+            pieceLabel.Size = UDim2.new(1, 0, 1, 0)
+            pieceLabel.BackgroundTransparency = 1
+            pieceLabel.Text = ""
+            pieceLabel.TextColor3 = Color3.fromRGB(0, 0, 0)
+            pieceLabel.Font = Enum.Font.GothamBold
+            pieceLabel.TextSize = 20
+            pieceLabel.Parent = square
+
+            squares[row][col] = {frame = square, label = pieceLabel}
+        end
+    end
+
+    -- Column labels (A-F)
+    local colLabels = {"A", "B", "C", "D", "E", "F"}
+    for col = 1, BOARD_SIZE do
+        local label = Instance.new("TextLabel")
+        label.Name = "ColLabel_" .. col
+        label.Size = UDim2.new(0, MINI_SQUARE_SIZE, 0, 15)
+        label.Position = UDim2.new(0, (col - 1) * MINI_SQUARE_SIZE, 1, 2)
+        label.BackgroundTransparency = 1
+        label.Text = colLabels[col]
+        label.TextColor3 = Color3.fromRGB(150, 150, 150)
+        label.Font = Enum.Font.GothamBold
+        label.TextSize = 10
+        label.Parent = boardFrame
+    end
+
+    -- Row labels (1-6)
+    for row = 1, BOARD_SIZE do
+        local label = Instance.new("TextLabel")
+        label.Name = "RowLabel_" .. row
+        local displayRow = BOARD_SIZE - row + 1
+        label.Size = UDim2.new(0, 12, 0, MINI_SQUARE_SIZE)
+        label.Position = UDim2.new(1, 2, 0, (displayRow - 1) * MINI_SQUARE_SIZE)
+        label.BackgroundTransparency = 1
+        label.Text = tostring(row)
+        label.TextColor3 = Color3.fromRGB(150, 150, 150)
+        label.Font = Enum.Font.GothamBold
+        label.TextSize = 10
+        label.Parent = boardFrame
+    end
+
+    -- Toggle functionality
+    local isMinimized = false
+    toggleBtn.MouseButton1Click:Connect(function()
+        isMinimized = not isMinimized
+        if isMinimized then
+            boardFrame.Visible = false
+            container.Size = UDim2.new(0, MINI_SQUARE_SIZE * BOARD_SIZE + 20, 0, 30)
+            toggleBtn.Text = "+"
+        else
+            boardFrame.Visible = true
+            container.Size = UDim2.new(0, MINI_SQUARE_SIZE * BOARD_SIZE + 20, 0, MINI_SQUARE_SIZE * BOARD_SIZE + 50)
+            toggleBtn.Text = "−"
+        end
+        SoundManager.playSelectSound()
+    end)
+
+    -- Update function
+    local function updateMiniboard(gameState)
+        -- Reset all squares (clear text and restore original colors)
+        for row = 1, BOARD_SIZE do
+            for col = 1, BOARD_SIZE do
+                squares[row][col].label.Text = ""
+                -- Restore original checkerboard color
+                squares[row][col].frame.BackgroundColor3 = ((row + col) % 2 == 0) and lightColor or darkColor
+            end
+        end
+
+        if not gameState or not gameState.pieces then return end
+
+        -- Place pieces
+        for _, piece in ipairs(gameState.pieces) do
+            local row, col = piece.row, piece.col
+            if squares[row] and squares[row][col] then
+                local symbol = getPieceSymbol(piece.type, piece.color)
+                squares[row][col].label.Text = symbol
+                -- Color the text based on piece color for better visibility
+                if piece.color == Constants.Color.WHITE then
+                    squares[row][col].label.TextColor3 = Color3.fromRGB(255, 255, 255)
+                    squares[row][col].label.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+                    squares[row][col].label.TextStrokeTransparency = 0.5
+                else
+                    squares[row][col].label.TextColor3 = Color3.fromRGB(30, 30, 30)
+                    squares[row][col].label.TextStrokeColor3 = Color3.fromRGB(255, 255, 255)
+                    squares[row][col].label.TextStrokeTransparency = 0.7
+                end
+            end
+        end
+
+        -- Highlight last move if available
+        if gameState.lastMove then
+            local fromRow, fromCol = gameState.lastMove.fromRow, gameState.lastMove.fromCol
+            local toRow, toCol = gameState.lastMove.toRow, gameState.lastMove.toCol
+
+            if squares[fromRow] and squares[fromRow][fromCol] then
+                squares[fromRow][fromCol].frame.BackgroundColor3 = Color3.fromRGB(255, 255, 150) -- Yellow highlight
+            end
+            if squares[toRow] and squares[toRow][toCol] then
+                squares[toRow][toCol].frame.BackgroundColor3 = Color3.fromRGB(255, 255, 100) -- Brighter yellow
+            end
+        end
+    end
+
+    return container, updateMiniboard
 end
 
 -- Create game HUD
@@ -789,6 +1373,101 @@ local function createGameHUD()
     stroke.Color = Color3.fromRGB(255, 200, 100)
     stroke.Thickness = 3
     stroke.Parent = turnLabel
+
+    -- Chess Clock Container (left side of screen)
+    local clockContainer = Instance.new("Frame")
+    clockContainer.Name = "ChessClockContainer"
+    clockContainer.Size = UDim2.new(0, 120, 0, 160)
+    clockContainer.Position = UDim2.new(0, 20, 0.5, -80)
+    clockContainer.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
+    clockContainer.BackgroundTransparency = 0.1
+    clockContainer.Parent = screenGui
+
+    local clockCorner = Instance.new("UICorner")
+    clockCorner.CornerRadius = UDim.new(0, 10)
+    clockCorner.Parent = clockContainer
+
+    local clockStroke = Instance.new("UIStroke")
+    clockStroke.Color = Color3.fromRGB(80, 80, 90)
+    clockStroke.Thickness = 2
+    clockStroke.Parent = clockContainer
+
+    -- Clock title
+    local clockTitle = Instance.new("TextLabel")
+    clockTitle.Name = "ClockTitle"
+    clockTitle.Size = UDim2.new(1, 0, 0, 25)
+    clockTitle.BackgroundTransparency = 1
+    clockTitle.Text = "⏱️ Clock"
+    clockTitle.TextColor3 = Color3.fromRGB(200, 200, 200)
+    clockTitle.Font = Enum.Font.GothamBold
+    clockTitle.TextSize = 14
+    clockTitle.Parent = clockContainer
+
+    -- Black player clock (top - opponent from white's perspective)
+    local blackClockFrame = Instance.new("Frame")
+    blackClockFrame.Name = "BlackClockFrame"
+    blackClockFrame.Size = UDim2.new(1, -16, 0, 55)
+    blackClockFrame.Position = UDim2.new(0, 8, 0, 28)
+    blackClockFrame.BackgroundColor3 = Color3.fromRGB(40, 40, 45)
+    blackClockFrame.Parent = clockContainer
+
+    local blackClockCorner = Instance.new("UICorner")
+    blackClockCorner.CornerRadius = UDim.new(0, 6)
+    blackClockCorner.Parent = blackClockFrame
+
+    local blackLabel = Instance.new("TextLabel")
+    blackLabel.Name = "Label"
+    blackLabel.Size = UDim2.new(1, 0, 0, 18)
+    blackLabel.BackgroundTransparency = 1
+    blackLabel.Text = "⬛ Black"
+    blackLabel.TextColor3 = Color3.fromRGB(150, 150, 150)
+    blackLabel.Font = Enum.Font.GothamBold
+    blackLabel.TextSize = 12
+    blackLabel.Parent = blackClockFrame
+
+    local blackTimeLabel = Instance.new("TextLabel")
+    blackTimeLabel.Name = "TimeLabel"
+    blackTimeLabel.Size = UDim2.new(1, 0, 0, 35)
+    blackTimeLabel.Position = UDim2.new(0, 0, 0, 18)
+    blackTimeLabel.BackgroundTransparency = 1
+    blackTimeLabel.Text = "10:00"
+    blackTimeLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+    blackTimeLabel.Font = Enum.Font.Code
+    blackTimeLabel.TextSize = 28
+    blackTimeLabel.Parent = blackClockFrame
+
+    -- White player clock (bottom - you from white's perspective)
+    local whiteClockFrame = Instance.new("Frame")
+    whiteClockFrame.Name = "WhiteClockFrame"
+    whiteClockFrame.Size = UDim2.new(1, -16, 0, 55)
+    whiteClockFrame.Position = UDim2.new(0, 8, 0, 95)
+    whiteClockFrame.BackgroundColor3 = Color3.fromRGB(50, 50, 55)
+    whiteClockFrame.Parent = clockContainer
+
+    local whiteClockCorner = Instance.new("UICorner")
+    whiteClockCorner.CornerRadius = UDim.new(0, 6)
+    whiteClockCorner.Parent = whiteClockFrame
+
+    local whiteLabel = Instance.new("TextLabel")
+    whiteLabel.Name = "Label"
+    whiteLabel.Size = UDim2.new(1, 0, 0, 18)
+    whiteLabel.BackgroundTransparency = 1
+    whiteLabel.Text = "⬜ White"
+    whiteLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+    whiteLabel.Font = Enum.Font.GothamBold
+    whiteLabel.TextSize = 12
+    whiteLabel.Parent = whiteClockFrame
+
+    local whiteTimeLabel = Instance.new("TextLabel")
+    whiteTimeLabel.Name = "TimeLabel"
+    whiteTimeLabel.Size = UDim2.new(1, 0, 0, 35)
+    whiteTimeLabel.Position = UDim2.new(0, 0, 0, 18)
+    whiteTimeLabel.BackgroundTransparency = 1
+    whiteTimeLabel.Text = "10:00"
+    whiteTimeLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+    whiteTimeLabel.Font = Enum.Font.Code
+    whiteTimeLabel.TextSize = 28
+    whiteTimeLabel.Parent = whiteClockFrame
 
     -- Player color indicator (shows if you're white or black)
     local colorLabel = Instance.new("TextLabel")
@@ -826,6 +1505,72 @@ local function createGameHUD()
     resignBtn.MouseButton1Click:Connect(function()
         if ClientState.currentGameId then
             ResignEvent:FireServer(ClientState.currentGameId)
+        end
+    end)
+
+    -- Reset Camera button
+    local resetCamBtn = Instance.new("TextButton")
+    resetCamBtn.Name = "ResetCameraButton"
+    resetCamBtn.Size = UDim2.new(0, 40, 0, 40)
+    resetCamBtn.Position = UDim2.new(1, -60, 1, -110)
+    resetCamBtn.BackgroundColor3 = Color3.fromRGB(80, 80, 120)
+    resetCamBtn.Text = "📷"
+    resetCamBtn.TextColor3 = Color3.new(1, 1, 1)
+    resetCamBtn.Font = Enum.Font.GothamBold
+    resetCamBtn.TextSize = 24
+    resetCamBtn.Parent = screenGui
+
+    local resetCamCorner = Instance.new("UICorner")
+    resetCamCorner.CornerRadius = UDim.new(0, 8)
+    resetCamCorner.Parent = resetCamBtn
+
+    resetCamBtn.MouseButton1Click:Connect(function()
+        CameraController.resetCamera()
+        SoundManager.playSelectSound()
+    end)
+
+    -- New Game button (hidden until game ends)
+    local newGameBtn = Instance.new("TextButton")
+    newGameBtn.Name = "NewGameButton"
+    newGameBtn.Size = UDim2.new(0, 180, 0, 50)
+    newGameBtn.Position = UDim2.new(0.5, -90, 0.5, 50)
+    newGameBtn.BackgroundColor3 = Color3.fromRGB(80, 180, 80)
+    newGameBtn.Text = "🎮 New Game"
+    newGameBtn.TextColor3 = Color3.new(1, 1, 1)
+    newGameBtn.Font = Enum.Font.FredokaOne
+    newGameBtn.TextSize = 24
+    newGameBtn.Visible = false -- Hidden until game ends
+    newGameBtn.Parent = screenGui
+
+    local newGameCorner = Instance.new("UICorner")
+    newGameCorner.CornerRadius = UDim.new(0, 10)
+    newGameCorner.Parent = newGameBtn
+
+    newGameBtn.MouseButton1Click:Connect(function()
+        -- Reset client state
+        ClientState.currentGameId = nil
+        ClientState.gameState = nil
+        ClientState.selectedSquare = nil
+        ClientState.validMoves = {}
+        ClientState.playerColor = nil
+        ClientState.isMyTurn = false
+        ClientState.isAIvsAI = false
+        -- Reset clock state
+        ClientState.localTimeWhite = 600
+        ClientState.localTimeBlack = 600
+        ClientState.clockRunning = false
+
+        -- Switch back to menu music
+        MusicManager.playMenuMusic()
+
+        -- Hide game HUD and show main menu
+        screenGui.Enabled = false
+        newGameBtn.Visible = false
+
+        -- Show main menu
+        local mainMenu = LocalPlayer.PlayerGui:FindFirstChild("MainMenu")
+        if mainMenu then
+            mainMenu.Enabled = true
         end
     end)
 
@@ -868,7 +1613,10 @@ local function createGameHUD()
         end)
     end
 
-    return screenGui
+    -- Create miniboard on the right side
+    local miniboardContainer, updateMiniboard = createMiniboard(screenGui)
+
+    return screenGui, updateMiniboard
 end
 
 -- Initialize client
@@ -940,7 +1688,7 @@ local function initialize()
     print("🐱 [DEBUG] Board created! Creating menu...")
     local mainMenu = createMainMenu()
     print("🐱 [DEBUG] Menu created! Creating HUD...")
-    local gameHUD = createGameHUD()
+    local gameHUD, updateMiniboard = createGameHUD()
     print("🐱 [DEBUG] HUD created!")
 
     -- Create help button
@@ -965,7 +1713,16 @@ local function initialize()
         if not ClientState.playerColor then
             ClientState.playerColor = gameState.playerColor or Constants.Color.WHITE
         end
-        ClientState.isMyTurn = gameState.currentTurn == ClientState.playerColor
+
+        -- Track if this is AI vs AI mode
+        ClientState.isAIvsAI = gameState.isAIvsAI or false
+
+        -- In AI vs AI mode, it's never your turn (you're just watching)
+        if ClientState.isAIvsAI then
+            ClientState.isMyTurn = false
+        else
+            ClientState.isMyTurn = gameState.currentTurn == ClientState.playerColor
+        end
 
         -- Update HUD (with nil check)
         if not gameHUD then
@@ -977,7 +1734,12 @@ local function initialize()
         -- Update color indicator
         local colorLabel = gameHUD:FindFirstChild("ColorLabel")
         if colorLabel then
-            if ClientState.playerColor == Constants.Color.WHITE then
+            if gameState.isAIvsAI then
+                -- AI vs AI mode - show spectator status
+                colorLabel.Text = "👀 Spectating"
+                colorLabel.BackgroundColor3 = Color3.fromRGB(80, 60, 100)
+                colorLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+            elseif ClientState.playerColor == Constants.Color.WHITE then
                 colorLabel.Text = "You are: WHITE"
                 colorLabel.BackgroundColor3 = Color3.fromRGB(240, 240, 240)
                 colorLabel.TextColor3 = Color3.fromRGB(30, 30, 30)
@@ -988,10 +1750,33 @@ local function initialize()
             end
         end
 
+        -- Hide resign button in AI vs AI mode (you're just watching)
+        local resignBtn = gameHUD:FindFirstChild("ResignButton")
+        if resignBtn then
+            resignBtn.Visible = not gameState.isAIvsAI
+        end
+
+        -- Update chess clock state from server
+        if gameState.timeRemaining then
+            ClientState.localTimeWhite = gameState.timeRemaining[Constants.Color.WHITE] or 600
+            ClientState.localTimeBlack = gameState.timeRemaining[Constants.Color.BLACK] or 600
+            ClientState.lastClockUpdate = tick()
+            ClientState.clockRunning = gameState.gameState == Constants.GameState.IN_PROGRESS
+        end
+
         local turnLabel = gameHUD:FindFirstChild("TurnLabel")
         if turnLabel then
             if gameState.gameState == Constants.GameState.IN_PROGRESS then
-                if ClientState.isMyTurn then
+                -- Check if this is AI vs AI mode
+                if gameState.isAIvsAI then
+                    local turnName = gameState.currentTurn == Constants.Color.WHITE and "White" or "Black"
+                    turnLabel.Text = "🤖 " .. turnName .. " AI thinking..."
+                    turnLabel.TextColor3 = Color3.fromRGB(180, 100, 180) -- Purple for AI vs AI
+                    local stroke = turnLabel:FindFirstChild("UIStroke")
+                    if stroke then
+                        stroke.Color = Color3.fromRGB(180, 100, 180)
+                    end
+                elseif ClientState.isMyTurn then
                     turnLabel.Text = "✨ YOUR TURN - Click your piece!"
                     turnLabel.TextColor3 = Color3.fromRGB(100, 255, 100) -- Green
                     local stroke = turnLabel:FindFirstChild("UIStroke")
@@ -1010,22 +1795,49 @@ local function initialize()
                 local won = ClientState.playerColor == Constants.Color.WHITE
                 turnLabel.Text = won and "🎉 YOU WIN! 🎉" or "😿 You Lose..."
                 turnLabel.TextColor3 = won and Color3.fromRGB(255, 215, 0) or Color3.fromRGB(200, 100, 100)
+                -- Play victory/defeat music
+                if not ClientState.isAIvsAI then
+                    if won then MusicManager.playVictoryMusic() else MusicManager.playDefeatMusic() end
+                end
+                -- Show New Game button
+                local newGameBtn = gameHUD:FindFirstChild("NewGameButton")
+                if newGameBtn then newGameBtn.Visible = true end
             elseif gameState.gameState == Constants.GameState.BLACK_WIN then
                 local won = ClientState.playerColor == Constants.Color.BLACK
                 turnLabel.Text = won and "🎉 YOU WIN! 🎉" or "😿 You Lose..."
                 turnLabel.TextColor3 = won and Color3.fromRGB(255, 215, 0) or Color3.fromRGB(200, 100, 100)
+                -- Play victory/defeat music
+                if not ClientState.isAIvsAI then
+                    if won then MusicManager.playVictoryMusic() else MusicManager.playDefeatMusic() end
+                end
+                -- Show New Game button
+                local newGameBtn = gameHUD:FindFirstChild("NewGameButton")
+                if newGameBtn then newGameBtn.Visible = true end
             elseif gameState.gameState == Constants.GameState.STALEMATE then
                 turnLabel.Text = "😺 Stalemate - Draw!"
                 turnLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+                MusicManager.playMenuMusic()
+                -- Show New Game button
+                local newGameBtn = gameHUD:FindFirstChild("NewGameButton")
+                if newGameBtn then newGameBtn.Visible = true end
             elseif gameState.gameState == Constants.GameState.DRAW then
                 turnLabel.Text = "😺 Draw!"
                 turnLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+                MusicManager.playMenuMusic()
+                -- Show New Game button
+                local newGameBtn = gameHUD:FindFirstChild("NewGameButton")
+                if newGameBtn then newGameBtn.Visible = true end
             end
         end
 
         -- Skip animations on initial game setup
         local skipAnimation = ClientState.gameState == nil
         updateBoardVisuals(boardFolder, squares, gameState, skipAnimation)
+
+        -- Update miniboard
+        if updateMiniboard then
+            updateMiniboard(gameState)
+        end
     end
 
     -- Handle gesture received
@@ -1040,11 +1852,18 @@ local function initialize()
         if processed then return end
 
         if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            -- Skip fight animation if one is active
+            if BattleAnimations.isFightActive() then
+                print("🐱 [CLICK] Skipping fight animation!")
+                BattleAnimations.skipFight()
+                return
+            end
+
             print("🐱 [CLICK] Mouse clicked at screen position: " .. input.Position.X .. "," .. input.Position.Y)
 
             local camera = workspace.CurrentCamera
             local mousePos = UserInputService:GetMouseLocation()
-            local ray = camera:ViewportPointToRay(mousePos.X, mousePos.Y)
+            local ray = camera:ScreenPointToRay(mousePos.X, mousePos.Y)
 
             print("🐱 [CLICK] Ray origin: " .. tostring(ray.Origin))
             print("🐱 [CLICK] Ray direction: " .. tostring(ray.Direction))
@@ -1121,7 +1940,7 @@ local function initialize()
         local camera = workspace.CurrentCamera
         local mousePos = UserInputService:GetMouseLocation()
 
-        local ray = camera:ViewportPointToRay(mousePos.X, mousePos.Y)
+        local ray = camera:ScreenPointToRay(mousePos.X, mousePos.Y)
 
         -- Raycast to hit ANYTHING (including click zones)
         local raycastParams = RaycastParams.new()
@@ -1194,7 +2013,7 @@ local function initialize()
             ClientState.hoveredSquare = {row = row, col = col}
 
             -- Check if this square has our piece
-            local pieceData = ClientState.gameState.board[row] and ClientState.gameState.board[row][col]
+            local pieceData = getPieceAt(ClientState.gameState, row, col)
             local isOurPiece = pieceData and pieceData.color == ClientState.playerColor
 
             -- Only show hover glow on our pieces
@@ -1238,6 +2057,71 @@ local function initialize()
                 ClientState.cursorProjection = nil
             end
             mouse.Icon = ""
+        end
+    end)
+
+    -- Chess clock update loop (runs every frame for smooth countdown)
+    RunService.Heartbeat:Connect(function(deltaTime)
+        if not ClientState.clockRunning or not ClientState.gameState then
+            return
+        end
+
+        -- Only tick down if game is in progress
+        if ClientState.gameState.gameState ~= Constants.GameState.IN_PROGRESS then
+            ClientState.clockRunning = false
+            return
+        end
+
+        -- Tick down the active player's clock
+        local currentTurn = ClientState.gameState.currentTurn
+        if currentTurn == Constants.Color.WHITE then
+            ClientState.localTimeWhite = math.max(0, ClientState.localTimeWhite - deltaTime)
+        else
+            ClientState.localTimeBlack = math.max(0, ClientState.localTimeBlack - deltaTime)
+        end
+
+        -- Update clock display
+        local clockContainer = gameHUD:FindFirstChild("ChessClockContainer")
+        if clockContainer then
+            local whiteClockFrame = clockContainer:FindFirstChild("WhiteClockFrame")
+            local blackClockFrame = clockContainer:FindFirstChild("BlackClockFrame")
+
+            if whiteClockFrame and blackClockFrame then
+                local whiteTimeLabel = whiteClockFrame:FindFirstChild("TimeLabel")
+                local blackTimeLabel = blackClockFrame:FindFirstChild("TimeLabel")
+
+                if whiteTimeLabel then
+                    whiteTimeLabel.Text = formatTime(ClientState.localTimeWhite)
+                    -- Flash red if low on time (< 30 seconds)
+                    if ClientState.localTimeWhite <= 30 then
+                        -- Pulse effect for urgency
+                        local pulse = math.sin(tick() * 4) * 0.5 + 0.5
+                        whiteTimeLabel.TextColor3 = Color3.fromRGB(255, 100 + pulse * 50, 100)
+                    else
+                        whiteTimeLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+                    end
+                end
+
+                if blackTimeLabel then
+                    blackTimeLabel.Text = formatTime(ClientState.localTimeBlack)
+                    if ClientState.localTimeBlack <= 30 then
+                        local pulse = math.sin(tick() * 4) * 0.5 + 0.5
+                        blackTimeLabel.TextColor3 = Color3.fromRGB(255, 100 + pulse * 50, 100)
+                    else
+                        blackTimeLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+                    end
+                end
+
+                -- Highlight active player's clock
+                local isWhiteTurn = currentTurn == Constants.Color.WHITE
+                if isWhiteTurn then
+                    whiteClockFrame.BackgroundColor3 = Color3.fromRGB(80, 120, 80) -- Green highlight
+                    blackClockFrame.BackgroundColor3 = Color3.fromRGB(40, 40, 45)  -- Dim
+                else
+                    blackClockFrame.BackgroundColor3 = Color3.fromRGB(80, 120, 80) -- Green highlight
+                    whiteClockFrame.BackgroundColor3 = Color3.fromRGB(50, 50, 55)  -- Dim
+                end
+            end
         end
     end)
 

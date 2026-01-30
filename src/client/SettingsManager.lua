@@ -52,7 +52,7 @@ local COLOR_THEMES = {
 -- Default settings
 local DEFAULT_SETTINGS = {
     -- Visual
-    colorTheme = "Orange Tabby",
+    colorTheme = "Forest Floor",  -- Green board with best contrast (no white!)
 
     -- Audio
     masterVolume = 0.7,
@@ -60,7 +60,7 @@ local DEFAULT_SETTINGS = {
     sfxVolume = 0.6,
 
     -- Gameplay
-    showCoordinates = false,
+    showCoordinates = true,  -- Show A-F, 1-6 by default
     showValidMoves = true,
     animationSpeed = 1.0,
 
@@ -81,6 +81,11 @@ function SettingsManager.init()
     for key, value in pairs(DEFAULT_SETTINGS) do
         currentSettings[key] = value
     end
+
+    -- Store volume settings as player attributes for cross-module access
+    LocalPlayer:SetAttribute("masterVolume", currentSettings.masterVolume)
+    LocalPlayer:SetAttribute("musicVolume", currentSettings.musicVolume)
+    LocalPlayer:SetAttribute("sfxVolume", currentSettings.sfxVolume)
 
     print("🐱 [SETTINGS] Initialized with defaults")
 end
@@ -292,9 +297,22 @@ function SettingsManager.createSettingsUI(onClose)
                 -- Update setting
                 SettingsManager.set(settingKey, relativePos)
 
-                -- Apply immediately (for audio settings)
+                -- Apply audio settings immediately via player attributes
                 if settingKey:find("Volume") then
-                    -- TODO: Update audio volumes
+                    local Players = game:GetService("Players")
+                    local LocalPlayer = Players.LocalPlayer
+                    LocalPlayer:SetAttribute(settingKey, relativePos)
+
+                    -- Update MusicManager directly
+                    local success, MusicMgr = pcall(function()
+                        return require(script.Parent.MusicManager)
+                    end)
+                    if success and MusicMgr then
+                        MusicMgr.updateVolumeFromSettings(
+                            SettingsManager.get("masterVolume"),
+                            SettingsManager.get("musicVolume")
+                        )
+                    end
                 end
             end
         end)

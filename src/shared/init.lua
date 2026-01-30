@@ -24,4 +24,8 @@ else
     Shared.ChessAI = nil
 end
 
+print("🐱 [SHARED] Loading CampaignData...")
+Shared.CampaignData = require(script.CampaignData)
+print("🐱 [SHARED] CampaignData loaded!")
+
 return Shared

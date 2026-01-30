@@ -393,6 +393,18 @@ end
 
 -- Make a move
 function ChessEngine:makeMove(fromRow, fromCol, toRow, toCol, promotionPiece)
+    -- COUNT PIECES BEFORE MOVE
+    local pieceCountBefore = 0
+    for r = 1, Constants.BOARD_SIZE do
+        for c = 1, Constants.BOARD_SIZE do
+            if self.board[r] and self.board[r][c] then
+                pieceCountBefore = pieceCountBefore + 1
+            end
+        end
+    end
+    print(string.format("🐱 [ENGINE] BEFORE move [%d,%d]→[%d,%d]: %d total pieces on board",
+        fromRow, fromCol, toRow, toCol, pieceCountBefore))
+
     local piece = self:getPiece(fromRow, fromCol)
     if not piece then
         return false, "No piece at source"
@@ -428,6 +440,7 @@ function ChessEngine:makeMove(fromRow, fromCol, toRow, toCol, promotionPiece)
     -- Handle capture
     local capturedPiece = self.board[toRow][toCol]
     if capturedPiece then
+        print(string.format("🐱 [ENGINE] Capturing %s at [%d,%d]", capturedPiece.type, toRow, toCol))
         table.insert(self.capturedPieces[capturedPiece.color], capturedPiece)
         self.halfMoveClock = 0
     elseif piece.type == Constants.PieceType.PAWN then
@@ -437,6 +450,7 @@ function ChessEngine:makeMove(fromRow, fromCol, toRow, toCol, promotionPiece)
     end
 
     -- Make the move
+    print(string.format("🐱 [ENGINE] Moving piece from [%d,%d] to [%d,%d]", fromRow, fromCol, toRow, toCol))
     self.board[toRow][toCol] = piece
     self.board[fromRow][fromCol] = nil
     piece.hasMoved = true
@@ -450,6 +464,26 @@ function ChessEngine:makeMove(fromRow, fromCol, toRow, toCol, promotionPiece)
     end
 
     table.insert(self.moveHistory, moveRecord)
+
+    -- COUNT PIECES AFTER MOVE
+    local pieceCountAfter = 0
+    for r = 1, Constants.BOARD_SIZE do
+        for c = 1, Constants.BOARD_SIZE do
+            if self.board[r] and self.board[r][c] then
+                pieceCountAfter = pieceCountAfter + 1
+            end
+        end
+    end
+    print(string.format("🐱 [ENGINE] AFTER move: %d total pieces on board (should be %d)",
+        pieceCountAfter, capturedPiece and (pieceCountBefore - 1) or pieceCountBefore))
+
+    if capturedPiece and pieceCountAfter ~= (pieceCountBefore - 1) then
+        warn(string.format("🐱 [ENGINE] ⚠️ PIECE MISMATCH! Expected %d after capture, got %d",
+            pieceCountBefore - 1, pieceCountAfter))
+    elseif not capturedPiece and pieceCountAfter ~= pieceCountBefore then
+        warn(string.format("🐱 [ENGINE] ⚠️ PIECE MISMATCH! Expected %d after move, got %d",
+            pieceCountBefore, pieceCountAfter))
+    end
 
     -- Switch turn
     self.currentTurn = (self.currentTurn == Constants.Color.WHITE) and Constants.Color.BLACK or Constants.Color.WHITE
@@ -523,51 +557,63 @@ end
 
 -- Serialize board state for network sync
 function ChessEngine:serialize()
+    -- CRITICAL FIX: Don't use 2D arrays for network transmission!
+    -- Roblox's RemoteFunction can't handle sparse numeric arrays and will drop entire rows.
+    -- Instead, use a FLAT ARRAY with explicit row/col coordinates.
+
+    local pieces = {}  -- Flat array: {{row=1,col=1,type=...,color=...}, ...}
+
+    for row = 1, Constants.BOARD_SIZE do
+        for col = 1, Constants.BOARD_SIZE do
+            local piece = self.board[row][col]
+            if piece then
+                table.insert(pieces, {
+                    row = row,
+                    col = col,
+                    type = piece.type,
+                    color = piece.color,
+                    hasMoved = piece.hasMoved,
+                })
+            end
+        end
+    end
+
+    print(string.format("🐱 [ENGINE] serialize(): %d pieces serialized as flat array", #pieces))
+
     local data = {
-        board = {},
+        pieces = pieces,  -- Flat array instead of 2D board
         currentTurn = self.currentTurn,
         gameState = self.gameState,
         moveHistory = self.moveHistory,
         halfMoveClock = self.halfMoveClock,
     }
 
-    for row = 1, Constants.BOARD_SIZE do
-        data.board[row] = {}
-        for col = 1, Constants.BOARD_SIZE do
-            local piece = self.board[row][col]
-            if piece then
-                data.board[row][col] = {
-                    type = piece.type,
-                    color = piece.color,
-                    hasMoved = piece.hasMoved,
-                }
-            end
-        end
-    end
-
     return data
 end
 
--- Deserialize board state
+-- Deserialize board state (from flat array format)
 function ChessEngine:deserialize(data)
     self.currentTurn = data.currentTurn
     self.gameState = data.gameState
     self.moveHistory = data.moveHistory or {}
     self.halfMoveClock = data.halfMoveClock or 0
 
+    -- Clear board
     for row = 1, Constants.BOARD_SIZE do
         self.board[row] = {}
         for col = 1, Constants.BOARD_SIZE do
-            local pieceData = data.board[row] and data.board[row][col]
-            if pieceData then
-                self.board[row][col] = {
-                    type = pieceData.type,
-                    color = pieceData.color,
-                    hasMoved = pieceData.hasMoved,
-                }
-            else
-                self.board[row][col] = nil
-            end
+            self.board[row][col] = nil
+        end
+    end
+
+    -- Rebuild 2D board from flat array
+    if data.pieces then
+        for _, pieceData in ipairs(data.pieces) do
+            self.board[pieceData.row][pieceData.col] = {
+                type = pieceData.type,
+                color = pieceData.color,
+                hasMoved = pieceData.hasMoved,
+            }
         end
     end
 end

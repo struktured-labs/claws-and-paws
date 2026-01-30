@@ -51,6 +51,7 @@ local ResignEvent = createRemote("Resign", "RemoteEvent")
 local OfferDrawEvent = createRemote("OfferDraw", "RemoteEvent")
 local SendGestureEvent = createRemote("SendGesture", "RemoteEvent")
 local RequestAIGameEvent = createRemote("RequestAIGame", "RemoteEvent")
+local RequestAIvsAIGameEvent = createRemote("RequestAIvsAIGame", "RemoteEvent")
 
 -- Create RemoteFunctions
 local GetGameStateFunction = createRemote("GetGameState", "RemoteFunction")
@@ -59,19 +60,23 @@ local GetGameStateFunction = createRemote("GetGameState", "RemoteFunction")
 local GameSession = {}
 GameSession.__index = GameSession
 
-function GameSession.new(player1, player2, gameMode, isAI)
+function GameSession.new(player1, player2, gameMode, isAI, isAIvsAI, whiteDifficulty, blackDifficulty)
     local self = setmetatable({}, GameSession)
 
     self.id = game:GetService("HttpService"):GenerateGUID(false)
-    self.player1 = player1  -- White
+    self.player1 = player1  -- White (or spectator for AI vs AI)
     self.player2 = player2  -- Black (nil if AI)
     self.isAI = isAI or false
-    self.aiDifficulty = gameMode
+    self.isAIvsAI = isAIvsAI or false  -- Both sides are AI
+    self.aiDifficulty = gameMode  -- Legacy: single AI difficulty
+    self.whiteDifficulty = whiteDifficulty or gameMode  -- White AI difficulty
+    self.blackDifficulty = blackDifficulty or gameMode  -- Black AI difficulty
     self.gameMode = gameMode
     self.engine = ChessEngine.new()
     self.engine:setupBoard()
     self.startTime = os.time()
     self.lastMoveTime = os.time()
+    self.aiMoveDelay = 1.0  -- Delay between AI moves for watchability
 
     -- Time control
     local timeLimit = Constants.TimeControl[gameMode] or 600
@@ -100,32 +105,114 @@ function GameSession:getCurrentPlayer()
     end
 end
 
+-- Update time remaining based on elapsed time since last move
+function GameSession:updateTimeRemaining()
+    if self.engine.gameState ~= Constants.GameState.IN_PROGRESS then
+        return
+    end
+
+    local now = os.time()
+    local elapsed = now - self.lastMoveTime
+    local currentPlayer = self.engine.currentTurn
+
+    -- Deduct time from current player
+    self.timeRemaining[currentPlayer] = math.max(0, self.timeRemaining[currentPlayer] - elapsed)
+
+    -- Check for timeout
+    if self.timeRemaining[currentPlayer] <= 0 then
+        if currentPlayer == Constants.Color.WHITE then
+            self.engine.gameState = Constants.GameState.BLACK_WIN
+        else
+            self.engine.gameState = Constants.GameState.WHITE_WIN
+        end
+        print(string.format("🐱 [SERVER] Game ended by timeout! %s ran out of time.",
+            currentPlayer == Constants.Color.WHITE and "White" or "Black"))
+    end
+
+    -- Update last move time to now for accurate future calculations
+    self.lastMoveTime = now
+end
+
 function GameSession:broadcastState()
+    -- Update time before broadcasting
+    self:updateTimeRemaining()
+
     local state = self.engine:serialize()
     state.timeRemaining = self.timeRemaining
     state.gameId = self.id
     state.playerColor = Constants.Color.WHITE -- Always white for AI games
+    state.isAIvsAI = self.isAIvsAI  -- Let client know if this is AI vs AI
+    state.whiteDifficulty = self.whiteDifficulty
+    state.blackDifficulty = self.blackDifficulty
+    state.lastMoveTime = self.lastMoveTime  -- Send for client-side interpolation
 
-    -- Debug: Count and LOG pieces being sent
-    local pieceCount = 0
-    print("🐱 [SERVER] Pieces in state BEFORE broadcast:")
-    for row = 1, Constants.BOARD_SIZE do
-        for col = 1, Constants.BOARD_SIZE do
-            if state.board[row] and state.board[row][col] then
-                local piece = state.board[row][col]
-                print(string.format("🐱 [SERVER]   [%d,%d]: type=%d color=%d", row, col, piece.type, piece.color))
-                pieceCount = pieceCount + 1
-            end
-        end
+    -- Count pieces in serialized state (flat array format)
+    local pieceCount = #state.pieces
+
+    -- CRITICAL BUG CHECK: If we're missing pieces, something is very wrong!
+    if pieceCount < 12 then
+        warn(string.format("🐱 [SERVER] ⚠️ CRITICAL: Only %d pieces in state! Expected at least 12.", pieceCount))
     end
-    print("🐱 [SERVER] Broadcasting state with " .. pieceCount .. " pieces")
+
+    print(string.format("🐱 [SERVER] Broadcasting state with %d pieces (flat array)", pieceCount))
 
     if self.player1 then
         GetGameStateFunction:InvokeClient(self.player1, state)
     end
-    if self.player2 and not self.isAI then
+    if self.player2 and not self.isAI and not self.isAIvsAI then
         GetGameStateFunction:InvokeClient(self.player2, state)
     end
+end
+
+-- Start AI vs AI game loop
+function GameSession:startAIvsAILoop()
+    if not self.isAIvsAI then return end
+
+    print("🐱 [SERVER] Starting AI vs AI game loop")
+
+    task.spawn(function()
+        while self.engine.gameState == Constants.GameState.IN_PROGRESS do
+            task.wait(self.aiMoveDelay)
+
+            if self.engine.gameState ~= Constants.GameState.IN_PROGRESS then
+                break
+            end
+
+            -- Determine which AI should move
+            local currentDifficulty = self.engine.currentTurn == Constants.Color.WHITE
+                and self.whiteDifficulty
+                or self.blackDifficulty
+
+            local turnName = self.engine.currentTurn == Constants.Color.WHITE and "White" or "Black"
+            print(string.format("🐱 [SERVER] AI vs AI: %s's turn (difficulty: %s)", turnName, tostring(currentDifficulty)))
+
+            if ChessAI and ChessAI.getBestMove then
+                local aiMove = ChessAI.getBestMove(self.engine, currentDifficulty)
+                if aiMove then
+                    local success = self.engine:makeMove(
+                        aiMove.from.row, aiMove.from.col,
+                        aiMove.to.row, aiMove.to.col
+                    )
+                    if success then
+                        print(string.format("🐱 [SERVER] AI vs AI: %s moved [%d,%d] → [%d,%d]",
+                            turnName, aiMove.from.row, aiMove.from.col, aiMove.to.row, aiMove.to.col))
+                        self:broadcastState()
+                    else
+                        warn("🐱 [SERVER] AI vs AI: Move failed!")
+                        break
+                    end
+                else
+                    warn("🐱 [SERVER] AI vs AI: No valid move found!")
+                    break
+                end
+            else
+                warn("🐱 [SERVER] ChessAI not available!")
+                break
+            end
+        end
+
+        print("🐱 [SERVER] AI vs AI game ended with state: " .. tostring(self.engine.gameState))
+    end)
 end
 
 -- Find or create game for player
@@ -182,7 +269,9 @@ local function handleMove(player, gameId, fromRow, fromCol, toRow, toCol, promot
     local success, result = session.engine:makeMove(fromRow, fromCol, toRow, toCol, promotionPiece)
 
     if success then
-        session.lastMoveTime = os.time()
+        -- Update time for the player who just moved BEFORE changing lastMoveTime
+        session:updateTimeRemaining()
+        session.lastMoveTime = os.time()  -- Reset timer for next player
         session:broadcastState()
 
         -- AI response if playing against AI
@@ -230,6 +319,22 @@ end)
 RequestAIGameEvent.OnServerEvent:Connect(function(player, difficulty)
     local session = createAIGame(player, difficulty)
     session:broadcastState()
+end)
+
+-- Create AI vs AI game where player is just a spectator
+RequestAIvsAIGameEvent.OnServerEvent:Connect(function(player, whiteDifficulty, blackDifficulty)
+    print(string.format("🐱 [SERVER] Creating AI vs AI game: White=%s, Black=%s",
+        tostring(whiteDifficulty), tostring(blackDifficulty)))
+
+    -- Create session with player as spectator (player1 but not playing)
+    local session = GameSession.new(player, nil, whiteDifficulty, false, true, whiteDifficulty, blackDifficulty)
+    ActiveGames[session.id] = session
+
+    -- Broadcast initial state
+    session:broadcastState()
+
+    -- Start the AI vs AI loop
+    session:startAIvsAILoop()
 end)
 
 MakeMoveEvent.OnServerEvent:Connect(function(player, gameId, fromRow, fromCol, toRow, toCol, promotionPiece)
