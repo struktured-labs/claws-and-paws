@@ -23,11 +23,11 @@ local MUSIC_TRACKS = {
     -- Boss: epic, dramatic (reserved for campaign bosses)
     BOSS = "rbxassetid://1846902823",
 
-    -- Victory: triumphant fanfare
-    VICTORY = "rbxassetid://1843463175",
+    -- Victory: triumphant fanfare (uses BOSS track - dramatic/epic)
+    VICTORY = "rbxassetid://1846902823",
 
-    -- Defeat: somber
-    DEFEAT = "rbxassetid://1843463175",
+    -- Defeat: somber (uses INTENSE track - serious/reflective)
+    DEFEAT = "rbxassetid://1842458016",
 }
 
 -- Map game modes to music tracks

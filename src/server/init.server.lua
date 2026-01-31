@@ -146,6 +146,12 @@ function GameSession:broadcastState()
     state.blackDifficulty = self.blackDifficulty
     state.lastMoveTime = self.lastMoveTime  -- Send for client-side interpolation
 
+    -- Include check state so client can play warning sounds
+    state.inCheck = {
+        [Constants.Color.WHITE] = self.engine:isInCheck(Constants.Color.WHITE),
+        [Constants.Color.BLACK] = self.engine:isInCheck(Constants.Color.BLACK),
+    }
+
     -- Count pieces in serialized state (flat array format)
     local pieceCount = #state.pieces
 

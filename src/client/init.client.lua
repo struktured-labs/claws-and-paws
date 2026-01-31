@@ -94,6 +94,11 @@ local ClientState = {
     localTimeBlack = 600,
     lastClockUpdate = 0,
     clockRunning = false,
+    -- Audio tracking state
+    lastMoveCount = 0,       -- Track moveHistory length to detect new moves
+    lastCheckWhite = false,  -- Previous check state for white
+    lastCheckBlack = false,  -- Previous check state for black
+    currentPurrSound = nil,  -- Active purr sound instance
 }
 
 -- Board visual settings - Cat-themed!
@@ -1781,6 +1786,64 @@ local function initialize()
             ClientState.isMyTurn = gameState.currentTurn == ClientState.playerColor
         end
 
+        -- Play sounds for opponent/AI moves and check warnings
+        if gameState.gameState == Constants.GameState.IN_PROGRESS then
+            -- Detect new moves by comparing moveHistory length
+            local currentMoveCount = gameState.moveHistory and #gameState.moveHistory or 0
+            if currentMoveCount > ClientState.lastMoveCount and ClientState.lastMoveCount > 0 then
+                -- A new move was made - check if it was NOT our move
+                local lastMove = gameState.moveHistory[currentMoveCount]
+                if lastMove and lastMove.color ~= ClientState.playerColor then
+                    if lastMove.captured then
+                        SoundManager.playCaptureSound()
+                    else
+                        SoundManager.playMoveSound(lastMove.piece)
+                    end
+                end
+            end
+            ClientState.lastMoveCount = currentMoveCount
+
+            -- Check warning sound (only on state transitions)
+            if gameState.inCheck then
+                local whiteInCheck = gameState.inCheck[Constants.Color.WHITE]
+                local blackInCheck = gameState.inCheck[Constants.Color.BLACK]
+
+                if (whiteInCheck and not ClientState.lastCheckWhite)
+                    or (blackInCheck and not ClientState.lastCheckBlack) then
+                    SoundManager.playCheckSound()
+                end
+
+                ClientState.lastCheckWhite = whiteInCheck or false
+                ClientState.lastCheckBlack = blackInCheck or false
+            end
+        else
+            -- Game ended - play victory/defeat SFX (music is handled below in HUD section)
+            if ClientState.lastMoveCount > 0 then
+                local won = false
+                if gameState.gameState == Constants.GameState.WHITE_WIN then
+                    won = ClientState.playerColor == Constants.Color.WHITE
+                elseif gameState.gameState == Constants.GameState.BLACK_WIN then
+                    won = ClientState.playerColor == Constants.Color.BLACK
+                end
+
+                if not ClientState.isAIvsAI then
+                    if gameState.gameState == Constants.GameState.WHITE_WIN
+                        or gameState.gameState == Constants.GameState.BLACK_WIN then
+                        if won then
+                            SoundManager.playVictorySound()
+                        else
+                            SoundManager.playDefeatSound()
+                        end
+                    end
+                end
+
+                -- Reset tracking for next game
+                ClientState.lastMoveCount = 0
+                ClientState.lastCheckWhite = false
+                ClientState.lastCheckBlack = false
+            end
+        end
+
         -- Update HUD (with nil check)
         if not gameHUD then
             warn("🐱 [ERROR] gameHUD is nil!")
@@ -1995,6 +2058,11 @@ local function initialize()
                 ClientState.cursorProjection:Destroy()
                 ClientState.cursorProjection = nil
             end
+            -- Stop purring
+            if ClientState.currentPurrSound then
+                SoundManager.stopPurr(ClientState.currentPurrSound)
+                ClientState.currentPurrSound = nil
+            end
             ClientState.hoveredSquare = nil
             hoverCacheRow = nil
             hoverCacheCol = nil
@@ -2133,6 +2201,11 @@ local function initialize()
 
                 -- Change mouse icon
                 mouse.Icon = "rbxasset://SystemCursors/PointingHand"
+
+                -- Start purring if hovering over own piece with valid moves
+                if isOurPiece and not ClientState.currentPurrSound then
+                    ClientState.currentPurrSound = SoundManager.startPurr()
+                end
             else
                 -- Hovering over a square but not clickable - clear hover glow but keep cursor projection
                 if ClientState.hoverEffect then
@@ -2140,6 +2213,12 @@ local function initialize()
                     ClientState.hoverEffect = nil
                 end
                 mouse.Icon = ""
+
+                -- Stop purring when not on own moveable piece
+                if ClientState.currentPurrSound then
+                    SoundManager.stopPurr(ClientState.currentPurrSound)
+                    ClientState.currentPurrSound = nil
+                end
             end
         else
             -- Not hovering over any square - clear everything
@@ -2153,6 +2232,10 @@ local function initialize()
             if ClientState.cursorProjection then
                 ClientState.cursorProjection:Destroy()
                 ClientState.cursorProjection = nil
+            end
+            if ClientState.currentPurrSound then
+                SoundManager.stopPurr(ClientState.currentPurrSound)
+                ClientState.currentPurrSound = nil
             end
             mouse.Icon = ""
         end

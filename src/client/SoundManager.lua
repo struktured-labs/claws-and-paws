@@ -5,28 +5,46 @@
 
 local SoundManager = {}
 
--- Cat sound effects (replace with actual cat sounds)
+-- Cat sound effects - curated from Roblox audio library
+-- Fallback IDs (original placeholders) in comments if replacements fail
 local SOUNDS = {
     -- Movement sounds
-    MEOW_HAPPY = "rbxassetid://6682237952",      -- Happy meow
-    MEOW_CURIOUS = "rbxassetid://6682238053",    -- Curious meow
-    PURR = "rbxassetid://6682238156",            -- Purring
+    MEOW_HAPPY = "rbxassetid://138078642",       -- Kitty Meow (verified, 2k+ favs)
+    MEOW_CURIOUS = "rbxassetid://6378165274",    -- Meow Sound Effect (different variant)
+    PURR = "rbxassetid://5901308988",            -- Looped Purr (verified)
 
     -- Combat sounds
-    HISS = "rbxassetid://6682238244",            -- Hiss (capture)
-    GROWL = "rbxassetid://6682238344",           -- Growl (threatened)
-    POUNCE = "rbxassetid://6682238448",          -- Pounce (attack)
+    HISS = "rbxassetid://7128655475",            -- Cat Hiss (fallback: 4559380742)
+    GROWL = "rbxassetid://516484997",            -- Cat Growl
+    POUNCE = "rbxassetid://8319607685",          -- Battle Cats Attack Sound
 
     -- UI sounds
-    CLICK_SOFT = "rbxassetid://6682238556",      -- Soft click
-    WHOOSH = "rbxassetid://6682238655",          -- Whoosh (piece move)
+    CLICK_SOFT = "rbxassetid://9083627113",      -- Button Click Sound (fallback: 5852470908)
+    WHOOSH = "rbxassetid://12222200",            -- swoosh.wav (Roblox built-in)
 
     -- Special events
-    TRIUMPH = "rbxassetid://6682238752",         -- Victory meow
-    DEFEAT = "rbxassetid://6682238855",          -- Sad meow
+    TRIUMPH = "rbxassetid://12222253",           -- victory.wav (Roblox built-in, verified)
+    DEFEAT = "rbxassetid://190705984",           -- Sad Trombone
 }
 
 local soundCache = {}
+
+-- Cache LocalPlayer reference to avoid repeated lookups
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+
+-- Get effective volume for SFX (baseVol * masterVolume * sfxVolume)
+local function getEffectiveVolume(baseVol)
+    local masterVol = 0.7
+    local sfxVol = 0.5
+
+    if LocalPlayer then
+        masterVol = LocalPlayer:GetAttribute("masterVolume") or 0.7
+        sfxVol = LocalPlayer:GetAttribute("sfxVolume") or 0.5
+    end
+
+    return baseVol * masterVol * sfxVol
+end
 
 -- Create or get cached sound
 local function getSound(soundId, parent)
@@ -79,7 +97,7 @@ function SoundManager.playMoveSound(pieceType)
     end
 
     local sound = getSound(soundId)
-    sound.Volume = volume
+    sound.Volume = getEffectiveVolume(volume)
     sound.PlaybackSpeed = pitch
     sound:Play()
 end
@@ -88,13 +106,13 @@ end
 function SoundManager.playCaptureSound()
     task.spawn(function()
         local hiss = getSound(SOUNDS.HISS)
-        hiss.Volume = 0.5
+        hiss.Volume = getEffectiveVolume(0.5)
         hiss:Play()
 
         task.wait(0.2)
 
         local pounce = getSound(SOUNDS.POUNCE)
-        pounce.Volume = 0.6
+        pounce.Volume = getEffectiveVolume(0.6)
         pounce:Play()
     end)
 end
@@ -102,14 +120,14 @@ end
 -- Play selection sound
 function SoundManager.playSelectSound()
     local sound = getSound(SOUNDS.CLICK_SOFT)
-    sound.Volume = 0.3
+    sound.Volume = getEffectiveVolume(0.3)
     sound:Play()
 end
 
 -- Play dismissive sound (can't move this piece / illegal move)
 function SoundManager.playDismissiveSound()
     local sound = getSound(SOUNDS.MEOW_CURIOUS)
-    sound.Volume = 0.4
+    sound.Volume = getEffectiveVolume(0.4)
     sound.PlaybackSpeed = 0.7  -- Lower pitch = annoyed "meh" sound
     sound:Play()
 end
@@ -117,36 +135,38 @@ end
 -- Play check/threat sound
 function SoundManager.playCheckSound()
     local sound = getSound(SOUNDS.GROWL)
-    sound.Volume = 0.5
+    sound.Volume = getEffectiveVolume(0.5)
     sound:Play()
 end
 
 -- Play victory sound
 function SoundManager.playVictorySound(winner)
     local sound = getSound(SOUNDS.TRIUMPH)
-    sound.Volume = 0.7
+    sound.Volume = getEffectiveVolume(0.7)
     sound:Play()
 end
 
 -- Play defeat sound
 function SoundManager.playDefeatSound()
     local sound = getSound(SOUNDS.DEFEAT)
-    sound.Volume = 0.6
+    sound.Volume = getEffectiveVolume(0.6)
     sound:Play()
 end
 
 -- Random happy meow (ambient)
 function SoundManager.playHappyMeow()
     local sound = getSound(SOUNDS.MEOW_HAPPY)
-    sound.Volume = 0.3
+    sound.Volume = getEffectiveVolume(0.3)
     sound:Play()
 end
 
--- Purr when hovering over piece
-function SoundManager.startPurr(piece)
-    local sound = getSound(SOUNDS.PURR, piece)
-    sound.Volume = 0.2
+-- Purr when hovering over piece (dedicated instance, not cached)
+function SoundManager.startPurr()
+    local sound = Instance.new("Sound")
+    sound.SoundId = SOUNDS.PURR
+    sound.Volume = getEffectiveVolume(0.2)
     sound.Looped = true
+    sound.Parent = workspace
     sound:Play()
     return sound
 end
@@ -154,6 +174,7 @@ end
 function SoundManager.stopPurr(sound)
     if sound then
         sound:Stop()
+        sound:Destroy()
     end
 end
 
