@@ -732,6 +732,30 @@ local function onSquareClicked(row, col, boardFolder, squares)
             local movingPiece = getPieceAt(ClientState.gameState, fromRow, fromCol)
             local movingPieceType = movingPiece and movingPiece.type
 
+            -- Helper to send the move to server (with optional promotion piece)
+            local function sendMove(promotionPiece)
+                Logger.info(string.format("Sending move: [%d,%d] → [%d,%d]",
+                    fromRow, fromCol, row, col))
+
+                MakeMoveEvent:FireServer(
+                    ClientState.currentGameId,
+                    fromRow,
+                    fromCol,
+                    row,
+                    col,
+                    promotionPiece
+                )
+            end
+
+            -- Check if this is a pawn promotion
+            local isPromotion = false
+            if movingPieceType == Constants.PieceType.PAWN then
+                local promotionRow = (ClientState.playerColor == Constants.Color.WHITE) and Constants.BOARD_SIZE or 1
+                if row == promotionRow then
+                    isPromotion = true
+                end
+            end
+
             -- Animate the move first
             animateMove(boardFolder, fromRow, fromCol, row, col, isCapture, movingPieceType, function()
                 -- Animation complete - now update server
@@ -751,17 +775,14 @@ local function onSquareClicked(row, col, boardFolder, squares)
                     SoundManager.playMoveSound(pieceData and pieceData.type)
                 end
 
-                -- Make the move
-                Logger.info(string.format("Sending move: [%d,%d] → [%d,%d]",
-                    fromRow, fromCol, row, col))
-
-                MakeMoveEvent:FireServer(
-                    ClientState.currentGameId,
-                    fromRow,
-                    fromCol,
-                    row,
-                    col
-                )
+                if isPromotion then
+                    -- Show promotion popup, then send move with chosen piece
+                    showPromotionPopup(function(chosenType)
+                        sendMove(chosenType)
+                    end)
+                else
+                    sendMove(nil)
+                end
             end)
 
             ClientState.selectedSquare = nil
@@ -1403,6 +1424,100 @@ local function createMiniboard(parent)
     end
 
     return container, updateMiniboard
+end
+
+-- Show promotion choice popup and return the chosen piece type via callback
+local promotionGui = nil  -- persistent ScreenGui for promotion popup
+local function showPromotionPopup(callback)
+    -- Create the ScreenGui once
+    if not promotionGui then
+        promotionGui = Instance.new("ScreenGui")
+        promotionGui.Name = "PromotionPopup"
+        promotionGui.ResetOnSpawn = false
+        promotionGui.DisplayOrder = 100 -- above other UI
+        promotionGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+    end
+
+    -- Clear previous children
+    for _, child in ipairs(promotionGui:GetChildren()) do
+        child:Destroy()
+    end
+    promotionGui.Enabled = true
+
+    -- Dimmed background overlay
+    local overlay = Instance.new("Frame")
+    overlay.Name = "Overlay"
+    overlay.Size = UDim2.new(1, 0, 1, 0)
+    overlay.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+    overlay.BackgroundTransparency = 0.5
+    overlay.BorderSizePixel = 0
+    overlay.Parent = promotionGui
+
+    -- Popup frame
+    local popup = Instance.new("Frame")
+    popup.Name = "PromotionFrame"
+    popup.Size = UDim2.new(0, 300, 0, 160)
+    popup.Position = UDim2.new(0.5, -150, 0.5, -80)
+    popup.BackgroundColor3 = Color3.fromRGB(50, 50, 60)
+    popup.BorderSizePixel = 0
+    popup.Parent = promotionGui
+
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 10)
+    corner.Parent = popup
+
+    local stroke = Instance.new("UIStroke")
+    stroke.Color = Color3.fromRGB(255, 200, 100)
+    stroke.Thickness = 2
+    stroke.Parent = popup
+
+    local title = Instance.new("TextLabel")
+    title.Name = "Title"
+    title.Size = UDim2.new(1, 0, 0, 40)
+    title.BackgroundTransparency = 1
+    title.Text = "Promote Pawn To:"
+    title.TextColor3 = Color3.fromRGB(255, 200, 100)
+    title.Font = Enum.Font.FredokaOne
+    title.TextSize = 22
+    title.Parent = popup
+
+    -- Promotion options
+    local options = {
+        {label = "Q", name = "Queen", type = Constants.PieceType.QUEEN},
+        {label = "R", name = "Rook", type = Constants.PieceType.ROOK},
+        {label = "B", name = "Bishop", type = Constants.PieceType.BISHOP},
+        {label = "N", name = "Knight", type = Constants.PieceType.KNIGHT},
+    }
+
+    for i, opt in ipairs(options) do
+        local btn = Instance.new("TextButton")
+        btn.Name = opt.name
+        btn.Size = UDim2.new(0, 60, 0, 70)
+        btn.Position = UDim2.new(0, 15 + (i - 1) * 70, 0, 50)
+        btn.BackgroundColor3 = Color3.fromRGB(70, 70, 85)
+        btn.Text = opt.label .. "\n" .. opt.name
+        btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+        btn.Font = Enum.Font.GothamBold
+        btn.TextSize = 16
+        btn.Parent = popup
+
+        local btnCorner = Instance.new("UICorner")
+        btnCorner.CornerRadius = UDim.new(0, 8)
+        btnCorner.Parent = btn
+
+        btn.MouseButton1Click:Connect(function()
+            promotionGui.Enabled = false
+            callback(opt.type)
+        end)
+
+        -- Hover effect
+        btn.MouseEnter:Connect(function()
+            btn.BackgroundColor3 = Color3.fromRGB(100, 100, 120)
+        end)
+        btn.MouseLeave:Connect(function()
+            btn.BackgroundColor3 = Color3.fromRGB(70, 70, 85)
+        end)
+    end
 end
 
 -- Create game HUD

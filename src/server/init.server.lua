@@ -30,6 +30,33 @@ LogCollector.init()
 -- Active games storage
 local ActiveGames = {}
 
+-- Valid game modes for input validation
+local VALID_GAME_MODES = {}
+for _, mode in pairs(Constants.GameMode) do
+    VALID_GAME_MODES[mode] = true
+end
+
+-- Valid promotion pieces
+local VALID_PROMOTIONS = {
+    [Constants.PieceType.QUEEN] = true,
+    [Constants.PieceType.ROOK] = true,
+    [Constants.PieceType.BISHOP] = true,
+    [Constants.PieceType.KNIGHT] = true,
+}
+
+-- Input validation helpers
+local function isValidCoord(n)
+    return type(n) == "number" and n >= 1 and n <= Constants.BOARD_SIZE and n == math.floor(n)
+end
+
+local function isValidGameMode(mode)
+    return type(mode) == "string" and VALID_GAME_MODES[mode] == true
+end
+
+local function isValidPromotionPiece(piece)
+    return piece == nil or VALID_PROMOTIONS[piece] == true
+end
+
 -- Player matchmaking queue
 local MatchmakingQueue = {
     [Constants.GameMode.CASUAL] = {},
@@ -74,8 +101,8 @@ function GameSession.new(player1, player2, gameMode, isAI, isAIvsAI, whiteDiffic
     self.gameMode = gameMode
     self.engine = ChessEngine.new()
     self.engine:setupBoard()
-    self.startTime = os.time()
-    self.lastMoveTime = os.time()
+    self.startTime = tick()
+    self.lastMoveTime = tick()
     self.aiMoveDelay = 1.0  -- Delay between AI moves for watchability
 
     -- Time control
@@ -106,17 +133,21 @@ function GameSession:getCurrentPlayer()
 end
 
 -- Update time remaining based on elapsed time since last move
+-- Uses tick() for sub-second precision; idempotent (safe to call multiple times)
 function GameSession:updateTimeRemaining()
     if self.engine.gameState ~= Constants.GameState.IN_PROGRESS then
         return
     end
 
-    local now = os.time()
+    local now = tick()
     local elapsed = now - self.lastMoveTime
     local currentPlayer = self.engine.currentTurn
 
     -- Deduct time from current player
     self.timeRemaining[currentPlayer] = math.max(0, self.timeRemaining[currentPlayer] - elapsed)
+
+    -- Always advance lastMoveTime so repeated calls don't double-deduct
+    self.lastMoveTime = now
 
     -- Check for timeout
     if self.timeRemaining[currentPlayer] <= 0 then
@@ -128,9 +159,20 @@ function GameSession:updateTimeRemaining()
         print(string.format("🐱 [SERVER] Game ended by timeout! %s ran out of time.",
             currentPlayer == Constants.Color.WHITE and "White" or "Black"))
     end
+end
 
-    -- Update last move time to now for accurate future calculations
-    self.lastMoveTime = now
+-- Schedule cleanup of a finished game after a short delay
+local function scheduleGameCleanup(gameId, delay)
+    task.delay(delay or 5, function()
+        if ActiveGames[gameId] then
+            local session = ActiveGames[gameId]
+            if session.engine.gameState ~= Constants.GameState.IN_PROGRESS
+                and session.engine.gameState ~= Constants.GameState.WAITING then
+                ActiveGames[gameId] = nil
+                print(string.format("🐱 [SERVER] Cleaned up finished game %s", gameId))
+            end
+        end
+    end)
 end
 
 function GameSession:broadcastState()
@@ -167,6 +209,12 @@ function GameSession:broadcastState()
     end
     if self.player2 and not self.isAI and not self.isAIvsAI then
         GetGameStateFunction:InvokeClient(self.player2, state)
+    end
+
+    -- Schedule cleanup if game is over
+    if self.engine.gameState ~= Constants.GameState.IN_PROGRESS
+        and self.engine.gameState ~= Constants.GameState.WAITING then
+        scheduleGameCleanup(self.id)
     end
 end
 
@@ -282,6 +330,18 @@ end
 
 -- Handle move request
 local function handleMove(player, gameId, fromRow, fromCol, toRow, toCol, promotionPiece)
+    -- Validate inputs
+    if type(gameId) ~= "string" then
+        return false, "Invalid game ID"
+    end
+    if not isValidCoord(fromRow) or not isValidCoord(fromCol)
+        or not isValidCoord(toRow) or not isValidCoord(toCol) then
+        return false, "Invalid coordinates"
+    end
+    if not isValidPromotionPiece(promotionPiece) then
+        return false, "Invalid promotion piece"
+    end
+
     local session = ActiveGames[gameId]
     if not session then
         return false, "Game not found"
@@ -299,9 +359,8 @@ local function handleMove(player, gameId, fromRow, fromCol, toRow, toCol, promot
     local success, result = session.engine:makeMove(fromRow, fromCol, toRow, toCol, promotionPiece)
 
     if success then
-        -- Update time for the player who just moved BEFORE changing lastMoveTime
+        -- updateTimeRemaining is idempotent (advances lastMoveTime internally)
         session:updateTimeRemaining()
-        session.lastMoveTime = os.time()  -- Reset timer for next player
         session:broadcastState()
 
         -- AI response if playing against AI
@@ -334,6 +393,7 @@ end
 
 -- Connect remote events
 RequestMatchEvent.OnServerEvent:Connect(function(player, gameMode)
+    if not isValidGameMode(gameMode) then return end
     local session = findOrCreateGame(player, gameMode)
     if session then
         session:broadcastState()
@@ -341,6 +401,7 @@ RequestMatchEvent.OnServerEvent:Connect(function(player, gameMode)
 end)
 
 CancelMatchEvent.OnServerEvent:Connect(function(player, gameMode)
+    if not isValidGameMode(gameMode) then return end
     local queue = MatchmakingQueue[gameMode]
     if queue then
         for i, queuedPlayer in ipairs(queue) do
@@ -353,12 +414,14 @@ CancelMatchEvent.OnServerEvent:Connect(function(player, gameMode)
 end)
 
 RequestAIGameEvent.OnServerEvent:Connect(function(player, difficulty)
+    if not isValidGameMode(difficulty) then return end
     local session = createAIGame(player, difficulty)
     session:broadcastState()
 end)
 
 -- Create AI vs AI game where player is just a spectator
 RequestAIvsAIGameEvent.OnServerEvent:Connect(function(player, whiteDifficulty, blackDifficulty)
+    if not isValidGameMode(whiteDifficulty) or not isValidGameMode(blackDifficulty) then return end
     print(string.format("🐱 [SERVER] Creating AI vs AI game: White=%s, Black=%s",
         tostring(whiteDifficulty), tostring(blackDifficulty)))
 
@@ -381,10 +444,13 @@ MakeMoveEvent.OnServerEvent:Connect(function(player, gameId, fromRow, fromCol, t
 end)
 
 ResignEvent.OnServerEvent:Connect(function(player, gameId)
+    if type(gameId) ~= "string" then return end
     local session = ActiveGames[gameId]
     if not session then return end
 
     local playerColor = session:getPlayerColor(player)
+    if not playerColor then return end
+
     if playerColor == Constants.Color.WHITE then
         session.engine.gameState = Constants.GameState.BLACK_WIN
     else
@@ -392,6 +458,7 @@ ResignEvent.OnServerEvent:Connect(function(player, gameId)
     end
 
     session:broadcastState()
+    scheduleGameCleanup(gameId)
 end)
 
 SendGestureEvent.OnServerEvent:Connect(function(player, gameId, gesture)

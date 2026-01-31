@@ -30,9 +30,75 @@ function ChessEngine.new()
         [Constants.Color.BLACK] = {},
     }
     self.halfMoveClock = 0  -- For 50-move rule
-    self.positionHistory = {} -- For threefold repetition
+    self.positionHistory = {} -- For threefold repetition (hash → count)
 
     return self
+end
+
+-- Generate a simple hash of the current board position + turn
+function ChessEngine:getPositionHash()
+    local parts = {}
+    for row = 1, Constants.BOARD_SIZE do
+        for col = 1, Constants.BOARD_SIZE do
+            local piece = self.board[row][col]
+            if piece then
+                -- Encode: row, col, type, color as a compact string segment
+                table.insert(parts, string.format("%d%d%d%d", row, col, piece.type, piece.color))
+            end
+        end
+    end
+    -- Include whose turn it is
+    table.insert(parts, tostring(self.currentTurn))
+    return table.concat(parts, ",")
+end
+
+-- Record current position and return how many times it has occurred
+function ChessEngine:recordPosition()
+    local hash = self:getPositionHash()
+    self.positionHistory[hash] = (self.positionHistory[hash] or 0) + 1
+    return self.positionHistory[hash]
+end
+
+-- Check for insufficient material (automatic draw)
+function ChessEngine:hasInsufficientMaterial()
+    local whitePieces = {}
+    local blackPieces = {}
+
+    for row = 1, Constants.BOARD_SIZE do
+        for col = 1, Constants.BOARD_SIZE do
+            local piece = self.board[row][col]
+            if piece then
+                if piece.color == Constants.Color.WHITE then
+                    table.insert(whitePieces, piece.type)
+                else
+                    table.insert(blackPieces, piece.type)
+                end
+            end
+        end
+    end
+
+    -- King vs King
+    if #whitePieces == 1 and #blackPieces == 1 then
+        return true
+    end
+
+    -- King + minor piece vs King
+    local function isKingPlusMinor(pieces)
+        if #pieces ~= 2 then return false end
+        for _, t in ipairs(pieces) do
+            if t == Constants.PieceType.BISHOP or t == Constants.PieceType.KNIGHT then
+                return true
+            end
+        end
+        return false
+    end
+
+    if (#whitePieces == 1 and isKingPlusMinor(blackPieces))
+        or (#blackPieces == 1 and isKingPlusMinor(whitePieces)) then
+        return true
+    end
+
+    return false
 end
 
 -- Initialize board with Fischer Random setup
@@ -458,7 +524,14 @@ function ChessEngine:makeMove(fromRow, fromCol, toRow, toCol, promotionPiece)
     -- Handle pawn promotion
     local promotionRow = (piece.color == Constants.Color.WHITE) and Constants.BOARD_SIZE or 1
     if piece.type == Constants.PieceType.PAWN and toRow == promotionRow then
-        local newType = promotionPiece or Constants.PieceType.QUEEN
+        -- Validate promotion piece (only Q/R/B/N allowed)
+        local validPromotions = {
+            [Constants.PieceType.QUEEN] = true,
+            [Constants.PieceType.ROOK] = true,
+            [Constants.PieceType.BISHOP] = true,
+            [Constants.PieceType.KNIGHT] = true,
+        }
+        local newType = (promotionPiece and validPromotions[promotionPiece]) and promotionPiece or Constants.PieceType.QUEEN
         piece.type = newType
         moveRecord.promotion = newType
     end
@@ -487,6 +560,9 @@ function ChessEngine:makeMove(fromRow, fromCol, toRow, toCol, promotionPiece)
 
     -- Switch turn
     self.currentTurn = (self.currentTurn == Constants.Color.WHITE) and Constants.Color.BLACK or Constants.Color.WHITE
+
+    -- Record position for threefold repetition detection
+    self:recordPosition()
 
     -- Check game end conditions
     self:checkGameEnd()
@@ -524,10 +600,24 @@ function ChessEngine:checkGameEnd()
             -- Stalemate
             self.gameState = Constants.GameState.STALEMATE
         end
+        return
     end
 
-    -- 50-move rule (25 moves per side on 6x6 might be more appropriate)
+    -- 50-move rule (25 full moves = 50 half-moves on 6x6)
     if self.halfMoveClock >= 50 then
+        self.gameState = Constants.GameState.DRAW
+        return
+    end
+
+    -- Threefold repetition
+    local hash = self:getPositionHash()
+    if (self.positionHistory[hash] or 0) >= 3 then
+        self.gameState = Constants.GameState.DRAW
+        return
+    end
+
+    -- Insufficient material
+    if self:hasInsufficientMaterial() then
         self.gameState = Constants.GameState.DRAW
     end
 end
