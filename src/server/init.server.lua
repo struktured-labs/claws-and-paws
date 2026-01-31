@@ -164,6 +164,21 @@ function GameSession:broadcastState()
     end
 end
 
+-- Start a background task that checks the clock every second and ends the game on timeout
+function GameSession:startTimeoutMonitor()
+    task.spawn(function()
+        while self.engine.gameState == Constants.GameState.IN_PROGRESS do
+            task.wait(1)
+            self:updateTimeRemaining()
+            if self.engine.gameState ~= Constants.GameState.IN_PROGRESS then
+                print("🐱 [SERVER] Timeout monitor detected game end, broadcasting...")
+                self:broadcastState()
+                break
+            end
+        end
+    end)
+end
+
 -- Start AI vs AI game loop
 function GameSession:startAIvsAILoop()
     if not self.isAIvsAI then return end
@@ -175,6 +190,13 @@ function GameSession:startAIvsAILoop()
             task.wait(self.aiMoveDelay)
 
             if self.engine.gameState ~= Constants.GameState.IN_PROGRESS then
+                break
+            end
+
+            -- Check timeout before AI computation
+            self:updateTimeRemaining()
+            if self.engine.gameState ~= Constants.GameState.IN_PROGRESS then
+                self:broadcastState()
                 break
             end
 
@@ -231,6 +253,7 @@ local function findOrCreateGame(player, gameMode)
         if opponent and opponent.Parent then  -- Check player still connected
             local session = GameSession.new(opponent, player, gameMode, false)
             ActiveGames[session.id] = session
+            session:startTimeoutMonitor()
             return session
         end
     end
@@ -247,6 +270,7 @@ end
 local function createAIGame(player, difficulty)
     local session = GameSession.new(player, nil, difficulty, true)
     ActiveGames[session.id] = session
+    session:startTimeoutMonitor()
     return session
 end
 
@@ -277,6 +301,12 @@ local function handleMove(player, gameId, fromRow, fromCol, toRow, toCol, promot
         -- AI response if playing against AI
         if session.isAI and session.engine.gameState == Constants.GameState.IN_PROGRESS then
             task.delay(0.5, function()
+                -- Check timeout before AI computation
+                session:updateTimeRemaining()
+                if session.engine.gameState ~= Constants.GameState.IN_PROGRESS then
+                    session:broadcastState()
+                    return
+                end
                 if ChessAI and ChessAI.getBestMove then
                     local aiMove = ChessAI.getBestMove(session.engine, session.aiDifficulty)
                     if aiMove then
@@ -329,6 +359,9 @@ RequestAIvsAIGameEvent.OnServerEvent:Connect(function(player, whiteDifficulty, b
     -- Create session with player as spectator (player1 but not playing)
     local session = GameSession.new(player, nil, whiteDifficulty, false, true, whiteDifficulty, blackDifficulty)
     ActiveGames[session.id] = session
+
+    -- Start the timeout monitor
+    session:startTimeoutMonitor()
 
     -- Broadcast initial state
     session:broadcastState()

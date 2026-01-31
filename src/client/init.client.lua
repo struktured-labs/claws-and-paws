@@ -343,7 +343,7 @@ local function createBoard()
             -- This makes clicking WAY easier - raycast hits this first!
             local clickZone = Instance.new("Part")
             clickZone.Name = string.format("ClickZone_%d_%d", row, col)
-            clickZone.Size = Vector3.new(BoardConfig.squareSize - 0.5, 50, BoardConfig.squareSize - 0.5) -- Tall column
+            clickZone.Size = Vector3.new(BoardConfig.squareSize, 50, BoardConfig.squareSize) -- Tall column, full square coverage
             clickZone.Position = Vector3.new(
                 (col - 3.5) * BoardConfig.squareSize,
                 25, -- Centered at height 25 (extends from 0 to 50)
@@ -493,6 +493,59 @@ local function createPieceModel(pieceType, color)
     return piece
 end
 
+-- Piece type letter mapping for floating labels
+local PIECE_LETTERS = {
+    [Constants.PieceType.KING] = "K",
+    [Constants.PieceType.QUEEN] = "Q",
+    [Constants.PieceType.ROOK] = "R",
+    [Constants.PieceType.BISHOP] = "B",
+    [Constants.PieceType.KNIGHT] = "N",
+    [Constants.PieceType.PAWN] = "P",
+    [Constants.PieceType.ARCHBISHOP] = "A",
+    [Constants.PieceType.CHANCELLOR] = "C",
+    [Constants.PieceType.AMAZON] = "Z",
+}
+
+-- Add a floating BillboardGui label above a piece showing its type letter
+local function addPieceLabel(pieceModel, pieceType, pieceColor)
+    if not SettingsManager.get("showPieceLabels") then return end
+
+    local letter = PIECE_LETTERS[pieceType] or "?"
+
+    -- Find the part to adorn
+    local adornPart = pieceModel
+    if pieceModel:IsA("Model") then
+        adornPart = pieceModel.PrimaryPart or pieceModel:FindFirstChildWhichIsA("BasePart")
+    end
+    if not adornPart or not adornPart:IsA("BasePart") then return end
+
+    local billboard = Instance.new("BillboardGui")
+    billboard.Name = "PieceLabel"
+    billboard.Size = UDim2.new(0, 40, 0, 30)
+    billboard.StudsOffset = Vector3.new(0, 5, 0) -- Float above the piece
+    billboard.AlwaysOnTop = true
+    billboard.Adornee = adornPart
+    billboard.Parent = pieceModel -- Parented to piece so it auto-cleans up
+
+    local label = Instance.new("TextLabel")
+    label.Size = UDim2.new(1, 0, 1, 0)
+    label.BackgroundTransparency = 1
+    label.Text = letter
+    label.Font = Enum.Font.GothamBold
+    label.TextSize = 22
+    label.Parent = billboard
+
+    -- Team-colored text with contrasting stroke
+    if pieceColor == Constants.Color.WHITE then
+        label.TextColor3 = Color3.fromRGB(255, 255, 255)
+        label.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+    else
+        label.TextColor3 = Color3.fromRGB(50, 50, 50)
+        label.TextStrokeColor3 = Color3.fromRGB(255, 255, 255)
+    end
+    label.TextStrokeTransparency = 0.3
+end
+
 -- Update board visuals from game state
 local function updateBoardVisuals(boardFolder, squares, gameState, skipAnimation)
     print("🐱 [UPDATE] ========== updateBoardVisuals called ==========")
@@ -573,6 +626,9 @@ local function updateBoardVisuals(boardFolder, squares, gameState, skipAnimation
                     end
                 end
                 print("🐱 [DEBUG] Positioned piece at " .. tostring(targetPos))
+
+                -- Add floating piece type label
+                addPieceLabel(pieceModel, pieceData.type, pieceData.color)
 
                 -- Add spawn animation for new pieces (but not initial setup)
                 if not skipAnimation and gameState.lastMove then
@@ -1921,6 +1977,12 @@ local function initialize()
 
     -- Handle hover effects using click zones (same as click detection)
     local RunService = game:GetService("RunService")
+
+    -- Cache for hover valid moves (recompute only when hovered square changes)
+    local hoverCacheRow = nil
+    local hoverCacheCol = nil
+    local hoverCacheHasValidMoves = false
+
     RunService.RenderStepped:Connect(function()
         if not ClientState.isMyTurn or not ClientState.gameState then
             -- Clear hover effect
@@ -1934,6 +1996,10 @@ local function initialize()
                 ClientState.cursorProjection = nil
             end
             ClientState.hoveredSquare = nil
+            hoverCacheRow = nil
+            hoverCacheCol = nil
+            local mouse = LocalPlayer:GetMouse()
+            mouse.Icon = ""
             return
         end
 
@@ -2017,16 +2083,45 @@ local function initialize()
             local pieceData = getPieceAt(ClientState.gameState, row, col)
             local isOurPiece = pieceData and pieceData.color == ClientState.playerColor
 
-            -- Only show hover glow on our pieces
-            if isOurPiece then
+            -- Determine if we should show PointingHand cursor:
+            -- 1) Own piece with valid moves
+            -- 2) Valid move target when a piece is selected
+            local showPointingHand = false
 
+            if isOurPiece then
+                -- Cache: only recompute valid moves when hovered square changes
+                if hoverCacheRow ~= row or hoverCacheCol ~= col then
+                    hoverCacheRow = row
+                    hoverCacheCol = col
+                    local engine = Shared.ChessEngine.new()
+                    engine:deserialize(ClientState.gameState)
+                    local moves = engine:getValidMoves(row, col)
+                    hoverCacheHasValidMoves = #moves > 0
+                end
+                showPointingHand = hoverCacheHasValidMoves
+            elseif ClientState.selectedSquare then
+                -- Check if this square is a valid move target for the selected piece
+                for _, move in ipairs(ClientState.validMoves) do
+                    if move.row == row and move.col == col then
+                        showPointingHand = true
+                        break
+                    end
+                end
+                -- Reset hover cache since we're not on our own piece
+                hoverCacheRow = nil
+                hoverCacheCol = nil
+            else
+                hoverCacheRow = nil
+                hoverCacheCol = nil
+            end
+
+            if showPointingHand then
                 -- Clear old hover effect
                 if ClientState.hoverEffect then
                     ClientState.hoverEffect:Destroy()
                 end
 
                 -- Add new hover effect to the ground square
-                local square = squares[row][col]
                 local hoverGlow = Instance.new("SurfaceLight")
                 hoverGlow.Name = "HoverGlow"
                 hoverGlow.Color = Color3.fromRGB(255, 255, 150)
@@ -2039,7 +2134,7 @@ local function initialize()
                 -- Change mouse icon
                 mouse.Icon = "rbxasset://SystemCursors/PointingHand"
             else
-                -- Hovering over a square but not our piece - clear hover glow but keep cursor projection
+                -- Hovering over a square but not clickable - clear hover glow but keep cursor projection
                 if ClientState.hoverEffect then
                     ClientState.hoverEffect:Destroy()
                     ClientState.hoverEffect = nil
@@ -2049,6 +2144,8 @@ local function initialize()
         else
             -- Not hovering over any square - clear everything
             ClientState.hoveredSquare = nil
+            hoverCacheRow = nil
+            hoverCacheCol = nil
             if ClientState.hoverEffect then
                 ClientState.hoverEffect:Destroy()
                 ClientState.hoverEffect = nil

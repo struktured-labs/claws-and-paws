@@ -62,6 +62,7 @@ local DEFAULT_SETTINGS = {
     -- Gameplay
     showCoordinates = true,  -- Show A-F, 1-6 by default
     showValidMoves = true,
+    showPieceLabels = true,  -- Show floating piece type letters (K/Q/R/B/N/P)
     animationSpeed = 1.0,
 
     -- Camera
@@ -503,6 +504,9 @@ function SettingsManager.createSettingsUI(onClose)
     orderCounter = orderCounter + 1
 
     createToggle("Show Valid Moves", "showValidMoves", orderCounter)
+    orderCounter = orderCounter + 1
+
+    createToggle("Show Piece Labels", "showPieceLabels", orderCounter)
     orderCounter = orderCounter + 1
 
     -- Close button
