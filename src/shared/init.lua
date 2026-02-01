@@ -4,28 +4,30 @@
 
 local Shared = {}
 
-print("🐱 [SHARED] Loading Constants...")
+-- Constants must load first (other modules depend on it)
 Shared.Constants = require(script.Constants)
-print("🐱 [SHARED] Constants loaded!")
+local Constants = Shared.Constants
 
-print("🐱 [SHARED] Loading ChessEngine...")
+if Constants.DEBUG then print("🐱 [SHARED] Constants loaded!") end
+
+if Constants.DEBUG then print("🐱 [SHARED] Loading ChessEngine...") end
 Shared.ChessEngine = require(script.ChessEngine)
-print("🐱 [SHARED] ChessEngine loaded!")
+if Constants.DEBUG then print("🐱 [SHARED] ChessEngine loaded!") end
 
-print("🐱 [SHARED] Loading ChessAI...")
+if Constants.DEBUG then print("🐱 [SHARED] Loading ChessAI...") end
 local success, result = pcall(function()
     return require(script.ChessAI)
 end)
 if success then
     Shared.ChessAI = result
-    print("🐱 [SHARED] ChessAI loaded!")
+    if Constants.DEBUG then print("🐱 [SHARED] ChessAI loaded!") end
 else
-    warn("🐱 [SHARED] ChessAI FAILED to load:", result)
+    if Constants.DEBUG then warn("🐱 [SHARED] ChessAI FAILED to load:", result) end
     Shared.ChessAI = nil
 end
 
-print("🐱 [SHARED] Loading CampaignData...")
+if Constants.DEBUG then print("🐱 [SHARED] Loading CampaignData...") end
 Shared.CampaignData = require(script.CampaignData)
-print("🐱 [SHARED] CampaignData loaded!")
+if Constants.DEBUG then print("🐱 [SHARED] CampaignData loaded!") end
 
 return Shared

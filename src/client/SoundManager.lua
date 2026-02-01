@@ -178,4 +178,37 @@ function SoundManager.stopPurr(sound)
     end
 end
 
+-- Play draw/stalemate sound (neutral outcome)
+function SoundManager.playDrawSound()
+    local sound = getSound(SOUNDS.MEOW_CURIOUS)
+    sound.Volume = getEffectiveVolume(0.5)
+    sound.PlaybackSpeed = 0.9 -- Slightly lower, pensive
+    sound:Play()
+end
+
+-- Play pawn promotion celebration
+function SoundManager.playPromotionSound()
+    task.spawn(function()
+        local triumph = getSound(SOUNDS.TRIUMPH)
+        triumph.Volume = getEffectiveVolume(0.5)
+        triumph.PlaybackSpeed = 1.3 -- Quick, excited
+        triumph:Play()
+
+        task.wait(0.3)
+
+        local meow = getSound(SOUNDS.MEOW_HAPPY)
+        meow.Volume = getEffectiveVolume(0.4)
+        meow.PlaybackSpeed = 1.2
+        meow:Play()
+    end)
+end
+
+-- Play low-time warning tick (clock running low)
+function SoundManager.playLowTimeWarning()
+    local sound = getSound(SOUNDS.CLICK_SOFT)
+    sound.Volume = getEffectiveVolume(0.6)
+    sound.PlaybackSpeed = 2.0 -- Fast, urgent tick
+    sound:Play()
+end
+
 return SoundManager

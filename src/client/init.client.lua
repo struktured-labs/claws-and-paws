@@ -3,78 +3,80 @@
     Handles UI, input, and local game rendering
 ]]
 
-print("🐱 [DEBUG] Client script starting...")
+if Constants.DEBUG then print("🐱 [DEBUG] Client script starting...") end
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
 
-print("🐱 [DEBUG] Requiring Shared...")
+if Constants.DEBUG then print("🐱 [DEBUG] Requiring Shared...") end
 local Shared = require(ReplicatedStorage.Shared)
-print("🐱 [DEBUG] Shared loaded!")
+if Constants.DEBUG then print("🐱 [DEBUG] Shared loaded!") end
 local Constants = Shared.Constants
-print("🐱 [DEBUG] Constants loaded!")
-print("🐱 [DEBUG] Requiring Logger...")
+if Constants.DEBUG then print("🐱 [DEBUG] Constants loaded!") end
+if Constants.DEBUG then print("🐱 [DEBUG] Requiring Logger...") end
 local Logger = require(script.Logger)
-print("🐱 [DEBUG] Requiring MusicManager...")
+if Constants.DEBUG then print("🐱 [DEBUG] Requiring MusicManager...") end
 local MusicManager = require(script.MusicManager)
-print("🐱 [DEBUG] Requiring ParticleEffects...")
+if Constants.DEBUG then print("🐱 [DEBUG] Requiring ParticleEffects...") end
 local ParticleEffects = require(script.ParticleEffects)
-print("🐱 [DEBUG] Requiring SoundManager...")
+if Constants.DEBUG then print("🐱 [DEBUG] Requiring SoundManager...") end
 local SoundManager = require(script.SoundManager)
-print("🐱 [DEBUG] Requiring BattleAnimations...")
+if Constants.DEBUG then print("🐱 [DEBUG] Requiring BattleAnimations...") end
 local BattleAnimations = require(script.BattleAnimations)
-print("🐱 [DEBUG] Requiring AssetLoader...")
+if Constants.DEBUG then print("🐱 [DEBUG] Requiring AssetLoader...") end
 local AssetLoader = require(script.AssetLoader)
-print("🐱 [DEBUG] Requiring TutorialManager...")
+if Constants.DEBUG then print("🐱 [DEBUG] Requiring TutorialManager...") end
 local TutorialManager = require(script.TutorialManager)
-print("🐱 [DEBUG] Requiring CameraController...")
+if Constants.DEBUG then print("🐱 [DEBUG] Requiring CameraController...") end
 local CameraController = require(script.CameraController)
-print("🐱 [DEBUG] Requiring SettingsManager...")
+if Constants.DEBUG then print("🐱 [DEBUG] Requiring SettingsManager...") end
 local SettingsManager = require(script.SettingsManager)
-print("🐱 [DEBUG] All modules loaded!")
+if Constants.DEBUG then print("🐱 [DEBUG] Requiring CampaignUI...") end
+local CampaignUI = require(script.CampaignUI)
+if Constants.DEBUG then print("🐱 [DEBUG] All modules loaded!") end
 
 -- Initialize logger first
-print("🐱 [DEBUG] Calling Logger.init()...")
+if Constants.DEBUG then print("🐱 [DEBUG] Calling Logger.init()...") end
 Logger.init()
-print("🐱 [DEBUG] Logger initialized!")
+if Constants.DEBUG then print("🐱 [DEBUG] Logger initialized!") end
 
 -- Initialize settings
-print("🐱 [DEBUG] Initializing SettingsManager...")
+if Constants.DEBUG then print("🐱 [DEBUG] Initializing SettingsManager...") end
 SettingsManager.init()
-print("🐱 [DEBUG] Settings initialized!")
+if Constants.DEBUG then print("🐱 [DEBUG] Settings initialized!") end
 
 local LocalPlayer = Players.LocalPlayer
 
 -- Wait for remotes (no timeout - wait forever for server to create them)
-print("🐱 [DEBUG] Waiting for Remotes folder...")
+if Constants.DEBUG then print("🐱 [DEBUG] Waiting for Remotes folder...") end
 local Remotes = ReplicatedStorage:WaitForChild("Remotes")  -- Wait indefinitely
-print("🐱 [DEBUG] Remotes folder found!")
+if Constants.DEBUG then print("🐱 [DEBUG] Remotes folder found!") end
 
 -- Debug: List all children in Remotes folder
-print("🐱 [DEBUG] Children in Remotes folder:")
+if Constants.DEBUG then print("🐱 [DEBUG] Children in Remotes folder:") end
 for _, child in ipairs(Remotes:GetChildren()) do
-	print("🐱 [DEBUG]   - " .. child.Name .. " (" .. child.ClassName .. ")")
+	if Constants.DEBUG then print("🐱 [DEBUG]   - " .. child.Name .. " (" .. child.ClassName .. ")") end
 end
-print("🐱 [DEBUG] Total children: " .. #Remotes:GetChildren())
+if Constants.DEBUG then print("🐱 [DEBUG] Total children: " .. #Remotes:GetChildren()) end
 
-print("🐱 [DEBUG] Got Remotes! Waiting for events...")
+if Constants.DEBUG then print("🐱 [DEBUG] Got Remotes! Waiting for events...") end
 local RequestMatchEvent = Remotes:WaitForChild("RequestMatch")
-print("🐱 [DEBUG] Got RequestMatch")
+if Constants.DEBUG then print("🐱 [DEBUG] Got RequestMatch") end
 local CancelMatchEvent = Remotes:WaitForChild("CancelMatch")
-print("🐱 [DEBUG] Got CancelMatch")
+if Constants.DEBUG then print("🐱 [DEBUG] Got CancelMatch") end
 local MakeMoveEvent = Remotes:WaitForChild("MakeMove")
-print("🐱 [DEBUG] Got MakeMove")
+if Constants.DEBUG then print("🐱 [DEBUG] Got MakeMove") end
 local ResignEvent = Remotes:WaitForChild("Resign")
-print("🐱 [DEBUG] Got Resign")
+if Constants.DEBUG then print("🐱 [DEBUG] Got Resign") end
 local SendGestureEvent = Remotes:WaitForChild("SendGesture")
-print("🐱 [DEBUG] Got SendGesture")
+if Constants.DEBUG then print("🐱 [DEBUG] Got SendGesture") end
 local RequestAIGameEvent = Remotes:WaitForChild("RequestAIGame")
-print("🐱 [DEBUG] Got RequestAIGame")
+if Constants.DEBUG then print("🐱 [DEBUG] Got RequestAIGame") end
 local RequestAIvsAIGameEvent = Remotes:WaitForChild("RequestAIvsAIGame")
-print("🐱 [DEBUG] Got RequestAIvsAIGame")
+if Constants.DEBUG then print("🐱 [DEBUG] Got RequestAIvsAIGame") end
 local GetGameStateFunction = Remotes:WaitForChild("GetGameState")
-print("🐱 [DEBUG] Got GetGameState - all remotes loaded!")
+if Constants.DEBUG then print("🐱 [DEBUG] Got GetGameState - all remotes loaded!") end
 
 -- Client state
 local ClientState = {
@@ -99,6 +101,8 @@ local ClientState = {
     lastCheckWhite = false,  -- Previous check state for white
     lastCheckBlack = false,  -- Previous check state for black
     currentPurrSound = nil,  -- Active purr sound instance
+    currentBoss = nil,       -- Current campaign boss (nil when not in campaign)
+    lastLowTimeWarning = 0,  -- Last time low-time warning played (tick)
 }
 
 -- Board visual settings - Cat-themed!
@@ -198,24 +202,24 @@ end
 
 -- Animate a move with proper battle animations
 local function animateMove(boardFolder, fromRow, fromCol, toRow, toCol, isCapture, pieceType, onComplete)
-    print(string.format("🐱 [ANIM] Starting animation: [%d,%d] → [%d,%d]", fromRow, fromCol, toRow, toCol))
+    if Constants.DEBUG then print(string.format("🐱 [ANIM] Starting animation: [%d,%d] → [%d,%d]", fromRow, fromCol, toRow, toCol)) end
 
     -- Mark animation as in progress
     ClientState.animationInProgress = true
-    print("🐱 [ANIM] Set animationInProgress = true")
+    if Constants.DEBUG then print("🐱 [ANIM] Set animationInProgress = true") end
 
     -- Find the moving piece
     local pieceName = string.format("Piece_%d_%d", fromRow, fromCol)
     local piece = boardFolder:FindFirstChild(pieceName)
 
     if not piece then
-        print("🐱 [ANIM] ERROR: Piece not found: " .. pieceName)
+        if Constants.DEBUG then print("🐱 [ANIM] ERROR: Piece not found: " .. pieceName) end
         ClientState.animationInProgress = false
         if onComplete then onComplete() end
         return
     end
 
-    print("🐱 [ANIM] Found piece to animate: " .. pieceName)
+    if Constants.DEBUG then print("🐱 [ANIM] Found piece to animate: " .. pieceName) end
 
     -- Get main part for animation
     local mainPart = piece
@@ -231,12 +235,12 @@ local function animateMove(boardFolder, fromRow, fromCol, toRow, toCol, isCaptur
 
     -- Wrap onComplete to clean up animated piece and clear animation flag
     local wrappedComplete = function()
-        print("🐱 [ANIM] Animation complete, cleaning up and setting animationInProgress = false")
+        if Constants.DEBUG then print("🐱 [ANIM] Animation complete, cleaning up and setting animationInProgress = false") end
 
         -- CRITICAL: Destroy the animated piece BEFORE calling onComplete
         -- This prevents duplicate pieces (old animated piece + new piece from updateBoardVisuals)
         if piece and piece.Parent then
-            print(string.format("🐱 [ANIM] Destroying animated piece: %s", pieceName))
+            if Constants.DEBUG then print(string.format("🐱 [ANIM] Destroying animated piece: %s", pieceName)) end
             piece:Destroy()
         end
 
@@ -257,7 +261,7 @@ local function animateMove(boardFolder, fromRow, fromCol, toRow, toCol, isCaptur
         local targetPiece = boardFolder:FindFirstChild(targetPieceName)
         local targetPart = nil
         if targetPiece then
-            print(string.format("🐱 [ANIM] Found target piece for fight: %s", targetPieceName))
+            if Constants.DEBUG then print(string.format("🐱 [ANIM] Found target piece for fight: %s", targetPieceName)) end
             if targetPiece:IsA("Model") then
                 targetPart = targetPiece.PrimaryPart or targetPiece:FindFirstChildWhichIsA("BasePart")
             else
@@ -553,12 +557,12 @@ end
 
 -- Update board visuals from game state
 local function updateBoardVisuals(boardFolder, squares, gameState, skipAnimation)
-    print("🐱 [UPDATE] ========== updateBoardVisuals called ==========")
+    if Constants.DEBUG then print("🐱 [UPDATE] ========== updateBoardVisuals called ==========") end
 
     -- CRITICAL: Don't update board while animation is in progress!
     -- This would destroy the piece being animated
     if ClientState.animationInProgress then
-        print("🐱 [UPDATE] ⚠️ SKIPPING update - animation in progress!")
+        if Constants.DEBUG then print("🐱 [UPDATE] ⚠️ SKIPPING update - animation in progress!") end
         return
     end
 
@@ -566,12 +570,12 @@ local function updateBoardVisuals(boardFolder, squares, gameState, skipAnimation
     local destroyedCount = 0
     for _, child in ipairs(boardFolder:GetChildren()) do
         if child.Name:sub(1, 5) == "Piece" then
-            print("🐱 [UPDATE] Destroying piece: " .. child.Name)
+            if Constants.DEBUG then print("🐱 [UPDATE] Destroying piece: " .. child.Name) end
             child:Destroy()
             destroyedCount = destroyedCount + 1
         end
     end
-    print("🐱 [UPDATE] Destroyed " .. destroyedCount .. " existing pieces")
+    if Constants.DEBUG then print("🐱 [UPDATE] Destroyed " .. destroyedCount .. " existing pieces") end
 
     -- Clear all glows and sparkles from squares
     for row = 1, Constants.BOARD_SIZE do
@@ -591,16 +595,16 @@ local function updateBoardVisuals(boardFolder, squares, gameState, skipAnimation
     end
 
     -- Debug: Count and LIST all pieces in flat array state
-    print(string.format("🐱 [UPDATE] Received %d pieces in flat array format:", #gameState.pieces))
+    if Constants.DEBUG then print(string.format("🐱 [UPDATE] Received %d pieces in flat array format:", #gameState.pieces)) end
     for _, piece in ipairs(gameState.pieces) do
-        print(string.format("🐱 [UPDATE]   [%d,%d]: type=%d color=%d", piece.row, piece.col, piece.type, piece.color))
+        if Constants.DEBUG then print(string.format("🐱 [UPDATE]   [%d,%d]: type=%d color=%d", piece.row, piece.col, piece.type, piece.color)) end
     end
 
     -- Place pieces from flat array
     for _, pieceData in ipairs(gameState.pieces) do
         local row, col = pieceData.row, pieceData.col
         local pieceModel = createPieceModel(pieceData.type, pieceData.color)
-        print("🐱 [DEBUG] Created piece at [" .. row .. "," .. col .. "]: type=" .. pieceData.type .. " color=" .. pieceData.color)
+        if Constants.DEBUG then print("🐱 [DEBUG] Created piece at [" .. row .. "," .. col .. "]: type=" .. pieceData.type .. " color=" .. pieceData.color) end
         pieceModel.Name = string.format("Piece_%d_%d", row, col)
 
                 -- IMPORTANT: Parent FIRST, then position
@@ -630,7 +634,7 @@ local function updateBoardVisuals(boardFolder, squares, gameState, skipAnimation
                         pieceModel.CFrame = pieceModel.CFrame * CFrame.Angles(0, math.rad(180), 0)
                     end
                 end
-                print("🐱 [DEBUG] Positioned piece at " .. tostring(targetPos))
+                if Constants.DEBUG then print("🐱 [DEBUG] Positioned piece at " .. tostring(targetPos)) end
 
                 -- Add floating piece type label
                 addPieceLabel(pieceModel, pieceData.type, pieceData.color)
@@ -658,6 +662,18 @@ local function updateBoardVisuals(boardFolder, squares, gameState, skipAnimation
             if clickZone then
                 clickZone.Transparency = 1 -- Invisible
             end
+        end
+    end
+
+    -- Highlight last move (from and to squares) with soft pink
+    if gameState and gameState.lastMove then
+        local fromR, fromC = gameState.lastMove.fromRow, gameState.lastMove.fromCol
+        local toR, toC = gameState.lastMove.toRow, gameState.lastMove.toCol
+        if squares[fromR] and squares[fromR][fromC] then
+            squares[fromR][fromC].Color = BoardConfig.lastMoveColor
+        end
+        if squares[toR] and squares[toR][toC] then
+            squares[toR][toC].Color = BoardConfig.lastMoveColor
         end
     end
 
@@ -711,14 +727,14 @@ local function onSquareClicked(row, col, boardFolder, squares)
             end
         end
 
-        print("🐱 [DEBUG] Have " .. #ClientState.validMoves .. " valid moves, checking click at [" .. row .. "," .. col .. "]")
-        print("🐱 [DEBUG] Click types: row=" .. type(row) .. " col=" .. type(col))
+        if Constants.DEBUG then print("🐱 [DEBUG] Have " .. #ClientState.validMoves .. " valid moves, checking click at [" .. row .. "," .. col .. "]") end
+        if Constants.DEBUG then print("🐱 [DEBUG] Click types: row=" .. type(row) .. " col=" .. type(col)) end
         for i, move in ipairs(ClientState.validMoves) do
             if move and move.row and move.col then
-                print("🐱 [DEBUG] Comparing with move " .. i .. ": [" .. move.row .. "," .. move.col .. "] (types: " .. type(move.row) .. "," .. type(move.col) .. ") match=" .. tostring(move.row == row and move.col == col))
+                if Constants.DEBUG then print("🐱 [DEBUG] Comparing with move " .. i .. ": [" .. move.row .. "," .. move.col .. "] (types: " .. type(move.row) .. "," .. type(move.col) .. ") match=" .. tostring(move.row == row and move.col == col)) end
             end
         end
-        print("🐱 [DEBUG] Result: Valid move: " .. tostring(isValidMove))
+        if Constants.DEBUG then print("🐱 [DEBUG] Result: Valid move: " .. tostring(isValidMove)) end
         Logger.debug(string.format("Clicked square [%d,%d], Valid move: %s", row, col, tostring(isValidMove)))
 
         if isValidMove then
@@ -778,6 +794,7 @@ local function onSquareClicked(row, col, boardFolder, squares)
                 if isPromotion then
                     -- Show promotion popup, then send move with chosen piece
                     showPromotionPopup(function(chosenType)
+                        SoundManager.playPromotionSound()
                         sendMove(chosenType)
                     end)
                 else
@@ -827,13 +844,13 @@ local function onSquareClicked(row, col, boardFolder, squares)
             SoundManager.playSelectSound()
             ClientState.selectedSquare = {row = row, col = col}
             ClientState.validMoves = validMoves
-            print("🐱 [DEBUG] Selected piece, found " .. #ClientState.validMoves .. " valid moves")
+            if Constants.DEBUG then print("🐱 [DEBUG] Selected piece, found " .. #ClientState.validMoves .. " valid moves") end
             if ClientState.validMoves and #ClientState.validMoves > 0 then
                 for i, move in ipairs(ClientState.validMoves) do
                     if move and move.row and move.col then
-                        print("🐱 [DEBUG]   Move " .. i .. ": [" .. move.row .. "," .. move.col .. "]")
+                        if Constants.DEBUG then print("🐱 [DEBUG]   Move " .. i .. ": [" .. move.row .. "," .. move.col .. "]") end
                     else
-                        print("🐱 [DEBUG]   Move " .. i .. ": INVALID MOVE STRUCTURE")
+                        if Constants.DEBUG then print("🐱 [DEBUG]   Move " .. i .. ": INVALID MOVE STRUCTURE") end
                     end
                 end
             end
@@ -1032,7 +1049,8 @@ local function createAIvsAIPopup(mainMenuFrame)
     startCorner.Parent = startBtn
 
     startBtn.MouseButton1Click:Connect(function()
-        print(string.format("🐱 [CLIENT] Starting AI vs AI: White=%s, Black=%s", selectedWhite, selectedBlack))
+        ClientState.currentBoss = nil -- Not a campaign game
+        if Constants.DEBUG then print(string.format("🐱 [CLIENT] Starting AI vs AI: White=%s, Black=%s", selectedWhite, selectedBlack)) end
         RequestAIvsAIGameEvent:FireServer(selectedWhite, selectedBlack)
         -- Play music based on the harder AI difficulty
         local harderDifficulty = selectedWhite
@@ -1079,7 +1097,7 @@ local function createMainMenu()
 
     local frame = Instance.new("Frame")
     frame.Name = "MenuFrame"
-    frame.Size = UDim2.new(0.85, 0, 0, 510)
+    frame.Size = UDim2.new(0.85, 0, 0, 610)
     frame.AnchorPoint = Vector2.new(0.5, 0.5)
     frame.Position = UDim2.new(0.5, 0, 0.5, 0)
     frame.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
@@ -1088,8 +1106,8 @@ local function createMainMenu()
 
     -- Constrain to reasonable size on desktop
     local menuSizeConstraint = Instance.new("UISizeConstraint")
-    menuSizeConstraint.MaxSize = Vector2.new(320, 510)
-    menuSizeConstraint.MinSize = Vector2.new(250, 400)
+    menuSizeConstraint.MaxSize = Vector2.new(320, 610)
+    menuSizeConstraint.MinSize = Vector2.new(250, 500)
     menuSizeConstraint.Parent = frame
 
     local corner = Instance.new("UICorner")
@@ -1144,6 +1162,7 @@ local function createMainMenu()
         btnCorner.Parent = button
 
         button.MouseButton1Click:Connect(function()
+            ClientState.currentBoss = nil -- Not a campaign game
             if btnData.mode:sub(1, 2) == "AI" then
                 RequestAIGameEvent:FireServer(btnData.mode)
             else
@@ -1156,6 +1175,54 @@ local function createMainMenu()
 
         buttonY = buttonY + 50
     end
+
+    -- Campaign button (special gold styling)
+    local campaignBtn = Instance.new("TextButton")
+    campaignBtn.Name = "CampaignButton"
+    campaignBtn.Size = UDim2.new(0, 250, 0, 40)
+    campaignBtn.Position = UDim2.new(0.5, -125, 0, buttonY)
+    campaignBtn.BackgroundColor3 = Color3.fromRGB(200, 150, 50)
+    campaignBtn.BorderSizePixel = 0
+    campaignBtn.Text = "Boss Gauntlet"
+    campaignBtn.TextColor3 = Color3.new(1, 1, 1)
+    campaignBtn.Font = Enum.Font.FredokaOne
+    campaignBtn.TextSize = 18
+    campaignBtn.Parent = frame
+
+    local campaignCorner = Instance.new("UICorner")
+    campaignCorner.CornerRadius = UDim.new(0, 5)
+    campaignCorner.Parent = campaignBtn
+
+    local campaignStroke = Instance.new("UIStroke")
+    campaignStroke.Color = Color3.fromRGB(255, 215, 0)
+    campaignStroke.Thickness = 2
+    campaignStroke.Parent = campaignBtn
+
+    campaignBtn.MouseButton1Click:Connect(function()
+        SoundManager.playSelectSound()
+        frame.Visible = false
+        CampaignUI.createCampaignMenu(
+            function(boss)
+                -- Boss selected - map aiDifficulty to game mode
+                local modeMap = {
+                    AI_EASY = Constants.GameMode.AI_EASY,
+                    AI_MEDIUM = Constants.GameMode.AI_MEDIUM,
+                    AI_HARD = Constants.GameMode.AI_HARD,
+                }
+                local gameMode = modeMap[boss.aiDifficulty] or Constants.GameMode.AI_MEDIUM
+                RequestAIGameEvent:FireServer(gameMode)
+                MusicManager.playForGameMode(gameMode)
+                -- Store boss info for victory/defeat messages
+                ClientState.currentBoss = boss
+            end,
+            function()
+                -- Back button pressed - show main menu again
+                frame.Visible = true
+            end
+        )
+    end)
+
+    buttonY = buttonY + 50
 
     -- Watch AI vs AI button (special styling)
     local aiVsAiBtn = Instance.new("TextButton")
@@ -1207,6 +1274,28 @@ local function createMainMenu()
             SettingsManager.applyToBoardConfig(BoardConfig)
             -- Board colors will be updated when board is recreated or on next game
         end)
+    end)
+
+    -- How to Play button
+    buttonY = buttonY + 50
+    local helpBtn = Instance.new("TextButton")
+    helpBtn.Name = "HelpButton"
+    helpBtn.Size = UDim2.new(0, 250, 0, 40)
+    helpBtn.Position = UDim2.new(0.5, -125, 0, buttonY)
+    helpBtn.BackgroundColor3 = Color3.fromRGB(100, 100, 100)
+    helpBtn.BorderSizePixel = 0
+    helpBtn.Text = "? How to Play"
+    helpBtn.TextColor3 = Color3.new(1, 1, 1)
+    helpBtn.Font = Enum.Font.GothamBold
+    helpBtn.TextSize = 18
+    helpBtn.Parent = frame
+
+    local helpBtnCorner = Instance.new("UICorner")
+    helpBtnCorner.CornerRadius = UDim.new(0, 5)
+    helpBtnCorner.Parent = helpBtn
+
+    helpBtn.MouseButton1Click:Connect(function()
+        TutorialManager.createHelpOverlay()
     end)
 
     return screenGui
@@ -1769,6 +1858,106 @@ local function createGameHUD()
         end)
     end)
 
+    -- Back to Menu button (works during active game, with confirmation)
+    local menuBtn = Instance.new("TextButton")
+    menuBtn.Name = "MenuButton"
+    menuBtn.Size = UDim2.new(0, 80, 0, 40)
+    menuBtn.Position = UDim2.new(1, -230, 1, -60)
+    menuBtn.BackgroundColor3 = Color3.fromRGB(100, 100, 120)
+    menuBtn.Text = "Menu"
+    menuBtn.TextColor3 = Color3.new(1, 1, 1)
+    menuBtn.Font = Enum.Font.GothamBold
+    menuBtn.TextSize = 16
+    menuBtn.Parent = screenGui
+
+    local menuBtnCorner = Instance.new("UICorner")
+    menuBtnCorner.CornerRadius = UDim.new(0, 5)
+    menuBtnCorner.Parent = menuBtn
+
+    menuBtn.MouseButton1Click:Connect(function()
+        -- If game is active, resign first with confirmation
+        if ClientState.currentGameId and ClientState.gameState
+            and ClientState.gameState.gameState == Constants.GameState.IN_PROGRESS
+            and not ClientState.isAIvsAI then
+            -- Show small confirm popup
+            local confirmBg = Instance.new("Frame")
+            confirmBg.Name = "MenuConfirm"
+            confirmBg.Size = UDim2.new(0, 220, 0, 80)
+            confirmBg.AnchorPoint = Vector2.new(0.5, 0.5)
+            confirmBg.Position = UDim2.new(0.5, 0, 0.5, 0)
+            confirmBg.BackgroundColor3 = Color3.fromRGB(50, 45, 60)
+            confirmBg.Parent = screenGui
+
+            Instance.new("UICorner", confirmBg).CornerRadius = UDim.new(0, 8)
+            Instance.new("UIStroke", confirmBg).Color = Color3.fromRGB(200, 160, 80)
+
+            local confirmLabel = Instance.new("TextLabel")
+            confirmLabel.Size = UDim2.new(1, 0, 0, 35)
+            confirmLabel.BackgroundTransparency = 1
+            confirmLabel.Text = "Leave? (counts as resign)"
+            confirmLabel.TextColor3 = Color3.fromRGB(255, 200, 100)
+            confirmLabel.Font = Enum.Font.GothamBold
+            confirmLabel.TextSize = 13
+            confirmLabel.Parent = confirmBg
+
+            local yesMenuBtn = Instance.new("TextButton")
+            yesMenuBtn.Size = UDim2.new(0, 80, 0, 30)
+            yesMenuBtn.Position = UDim2.new(0, 20, 0, 40)
+            yesMenuBtn.BackgroundColor3 = Color3.fromRGB(200, 80, 80)
+            yesMenuBtn.Text = "Leave"
+            yesMenuBtn.TextColor3 = Color3.new(1, 1, 1)
+            yesMenuBtn.Font = Enum.Font.GothamBold
+            yesMenuBtn.TextSize = 14
+            yesMenuBtn.Parent = confirmBg
+            Instance.new("UICorner", yesMenuBtn).CornerRadius = UDim.new(0, 5)
+
+            local noMenuBtn = Instance.new("TextButton")
+            noMenuBtn.Size = UDim2.new(0, 80, 0, 30)
+            noMenuBtn.Position = UDim2.new(1, -100, 0, 40)
+            noMenuBtn.BackgroundColor3 = Color3.fromRGB(80, 140, 80)
+            noMenuBtn.Text = "Stay"
+            noMenuBtn.TextColor3 = Color3.new(1, 1, 1)
+            noMenuBtn.Font = Enum.Font.GothamBold
+            noMenuBtn.TextSize = 14
+            noMenuBtn.Parent = confirmBg
+            Instance.new("UICorner", noMenuBtn).CornerRadius = UDim.new(0, 5)
+
+            yesMenuBtn.MouseButton1Click:Connect(function()
+                ResignEvent:FireServer(ClientState.currentGameId)
+                confirmBg:Destroy()
+                -- Return to menu handled by game end flow
+            end)
+
+            noMenuBtn.MouseButton1Click:Connect(function()
+                confirmBg:Destroy()
+            end)
+
+            task.delay(5, function()
+                if confirmBg and confirmBg.Parent then
+                    confirmBg:Destroy()
+                end
+            end)
+        else
+            -- Game is over or AI vs AI - go directly to menu
+            ClientState.currentGameId = nil
+            ClientState.gameState = nil
+            ClientState.selectedSquare = nil
+            ClientState.validMoves = {}
+            ClientState.playerColor = nil
+            ClientState.isMyTurn = false
+            ClientState.isAIvsAI = false
+            ClientState.localTimeWhite = 600
+            ClientState.localTimeBlack = 600
+            ClientState.clockRunning = false
+            MusicManager.playMenuMusic()
+            screenGui.Enabled = false
+            local newGameButton = screenGui:FindFirstChild("NewGameButton")
+            if newGameButton then newGameButton.Visible = false end
+            local mainMenu = LocalPlayer.PlayerGui:FindFirstChild("MainMenu")
+            if mainMenu then mainMenu.Enabled = true end
+        end
+    end)
+
     -- Reset Camera button
     local resetCamBtn = Instance.new("TextButton")
     resetCamBtn.Name = "ResetCameraButton"
@@ -1943,24 +2132,59 @@ end
 
 -- Initialize client
 local function initialize()
-    print("🐱 [DEBUG] initialize() starting...")
+    if Constants.DEBUG then print("🐱 [DEBUG] initialize() starting...") end
+
+    -- Show loading screen immediately
+    local loadingGui = Instance.new("ScreenGui")
+    loadingGui.Name = "LoadingScreen"
+    loadingGui.ResetOnSpawn = false
+    loadingGui.DisplayOrder = 100
+    loadingGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+
+    local loadingBg = Instance.new("Frame")
+    loadingBg.Size = UDim2.new(1, 0, 1, 0)
+    loadingBg.BackgroundColor3 = Color3.fromRGB(25, 20, 35)
+    loadingBg.BorderSizePixel = 0
+    loadingBg.Parent = loadingGui
+
+    local loadingTitle = Instance.new("TextLabel")
+    loadingTitle.Size = UDim2.new(1, 0, 0, 60)
+    loadingTitle.AnchorPoint = Vector2.new(0.5, 0.5)
+    loadingTitle.Position = UDim2.new(0.5, 0, 0.4, 0)
+    loadingTitle.BackgroundTransparency = 1
+    loadingTitle.Text = "Claws & Paws"
+    loadingTitle.TextColor3 = Color3.fromRGB(255, 200, 100)
+    loadingTitle.Font = Enum.Font.FredokaOne
+    loadingTitle.TextSize = 42
+    loadingTitle.Parent = loadingBg
+
+    local loadingDots = Instance.new("TextLabel")
+    loadingDots.Size = UDim2.new(1, 0, 0, 30)
+    loadingDots.AnchorPoint = Vector2.new(0.5, 0.5)
+    loadingDots.Position = UDim2.new(0.5, 0, 0.52, 0)
+    loadingDots.BackgroundTransparency = 1
+    loadingDots.Text = "Setting up the cat arena..."
+    loadingDots.TextColor3 = Color3.fromRGB(180, 180, 190)
+    loadingDots.Font = Enum.Font.Gotham
+    loadingDots.TextSize = 16
+    loadingDots.Parent = loadingBg
 
     -- Hide player character SYNCHRONOUSLY (not async) to ensure it happens first
-    print("🐱 [DEBUG] Waiting for character...")
+    if Constants.DEBUG then print("🐱 [DEBUG] Waiting for character...") end
     local character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
-    print("🐱 [DEBUG] Got character:", character.Name)
+    if Constants.DEBUG then print("🐱 [DEBUG] Got character:", character.Name) end
 
     -- Move player to camera position instead of hiding
     -- This way, the camera following the character will be at the right spot
     local hrp = character:WaitForChild("HumanoidRootPart", 5)
     if hrp then
-        print("🐱 [DEBUG] Moving character to camera viewing position")
+        if Constants.DEBUG then print("🐱 [DEBUG] Moving character to camera viewing position") end
         -- Position character where we want camera to be, looking at board center
         hrp.CFrame = CFrame.new(Vector3.new(0, 60, -50), Vector3.new(0, 0, 0))
     end
 
     -- Make character invisible
-    print("🐱 [DEBUG] Making character invisible...")
+    if Constants.DEBUG then print("🐱 [DEBUG] Making character invisible...") end
     for _, part in ipairs(character:GetDescendants()) do
         if part:IsA("BasePart") or part:IsA("Decal") then
             part.Transparency = 1
@@ -1977,23 +2201,23 @@ local function initialize()
     end
 
     -- Camera setup handled by StarterPlayer properties and CameraController
-    print("🐱 [DEBUG] Camera setup done via StarterPlayer")
+    if Constants.DEBUG then print("🐱 [DEBUG] Camera setup done via StarterPlayer") end
 
     -- Remove spawn location if it exists
-    print("🐱 [DEBUG] Looking for SpawnLocation...")
+    if Constants.DEBUG then print("🐱 [DEBUG] Looking for SpawnLocation...") end
     local spawnLocation = workspace:FindFirstChild("SpawnLocation")
     if spawnLocation then
-        print("🐱 [DEBUG] Found SpawnLocation, destroying it")
+        if Constants.DEBUG then print("🐱 [DEBUG] Found SpawnLocation, destroying it") end
         spawnLocation:Destroy()
     else
-        print("🐱 [DEBUG] No SpawnLocation found")
+        if Constants.DEBUG then print("🐱 [DEBUG] No SpawnLocation found") end
     end
 
     -- Remove any default baseplate
-    print("🐱 [DEBUG] Looking for Baseplate...")
+    if Constants.DEBUG then print("🐱 [DEBUG] Looking for Baseplate...") end
     local baseplate = workspace:FindFirstChild("Baseplate")
     if baseplate then
-        print("🐱 [DEBUG] Found Baseplate, making invisible")
+        if Constants.DEBUG then print("🐱 [DEBUG] Found Baseplate, making invisible") end
         baseplate.Transparency = 1 -- Make invisible instead of deleting
     end
 
@@ -2002,16 +2226,25 @@ local function initialize()
     CameraController.enableCameraRotation()
 
     -- Apply theme from settings to board config
-    print("🐱 [DEBUG] Applying color theme from settings...")
+    if Constants.DEBUG then print("🐱 [DEBUG] Applying color theme from settings...") end
     SettingsManager.applyToBoardConfig(BoardConfig)
 
-    print("🐱 [DEBUG] Creating board...")
+    if Constants.DEBUG then print("🐱 [DEBUG] Creating board...") end
     local boardFolder, squares = createBoard()
-    print("🐱 [DEBUG] Board created! Creating menu...")
+    if Constants.DEBUG then print("🐱 [DEBUG] Board created! Creating menu...") end
     local mainMenu = createMainMenu()
-    print("🐱 [DEBUG] Menu created! Creating HUD...")
+    if Constants.DEBUG then print("🐱 [DEBUG] Menu created! Creating HUD...") end
     local gameHUD, updateMiniboard = createGameHUD()
-    print("🐱 [DEBUG] HUD created!")
+    if Constants.DEBUG then print("🐱 [DEBUG] HUD created!") end
+
+    -- Dismiss loading screen with fade
+    local TweenService = game:GetService("TweenService")
+    TweenService:Create(loadingBg, TweenInfo.new(0.5), {BackgroundTransparency = 1}):Play()
+    TweenService:Create(loadingTitle, TweenInfo.new(0.3), {TextTransparency = 1}):Play()
+    TweenService:Create(loadingDots, TweenInfo.new(0.3), {TextTransparency = 1}):Play()
+    task.delay(0.6, function()
+        loadingGui:Destroy()
+    end)
 
     -- Create help button
     TutorialManager.createHelpButton()
@@ -2023,7 +2256,7 @@ local function initialize()
 
     -- Handle game state updates
     GetGameStateFunction.OnClientInvoke = function(gameState)
-        print("🐱 [DEBUG] Received game state from server!")
+        if Constants.DEBUG then print("🐱 [DEBUG] Received game state from server!") end
         ClientState.gameState = gameState
         ClientState.currentGameId = gameState.gameId
 
@@ -2092,6 +2325,9 @@ local function initialize()
                         else
                             SoundManager.playDefeatSound()
                         end
+                    elseif gameState.gameState == Constants.GameState.STALEMATE
+                        or gameState.gameState == Constants.GameState.DRAW then
+                        SoundManager.playDrawSound()
                     end
                 end
 
@@ -2187,6 +2423,18 @@ local function initialize()
                 elseif gameState.gameState == Constants.GameState.DRAW then
                     isDraw = true
                     resultText = "Draw!"
+                end
+
+                -- Campaign boss mode - show boss quotes
+                if ClientState.currentBoss and not ClientState.isAIvsAI then
+                    local boss = ClientState.currentBoss
+                    if won then
+                        resultText = boss.victoryQuote or "YOU WIN!"
+                        -- Mark boss as defeated
+                        LocalPlayer:SetAttribute("boss_" .. boss.id, true)
+                    elseif not isDraw then
+                        resultText = boss.defeatQuote or "You Lose..."
+                    end
                 end
 
                 -- AI vs AI gets neutral result text
@@ -2556,6 +2804,19 @@ local function initialize()
             ClientState.localTimeBlack = math.max(0, ClientState.localTimeBlack - deltaTime)
         end
 
+        -- Low-time warning sound (player's own clock under 10 seconds, once per second)
+        if not ClientState.isAIvsAI then
+            local myTime = ClientState.playerColor == Constants.Color.WHITE
+                and ClientState.localTimeWhite or ClientState.localTimeBlack
+            if myTime <= 10 and myTime > 0 and currentTurn == ClientState.playerColor then
+                local now = tick()
+                if now - ClientState.lastLowTimeWarning >= 1.0 then
+                    ClientState.lastLowTimeWarning = now
+                    SoundManager.playLowTimeWarning()
+                end
+            end
+        end
+
         -- Update clock display
         local clockContainer = gameHUD:FindFirstChild("ChessClockContainer")
         if clockContainer then
@@ -2601,9 +2862,9 @@ local function initialize()
         end
     end)
 
-    print("🐱 Claws & Paws client initialized! Meow!")
+    if Constants.DEBUG then print("🐱 Claws & Paws client initialized! Meow!") end
 end
 
-print("🐱 [DEBUG] About to call initialize()...")
+if Constants.DEBUG then print("🐱 [DEBUG] About to call initialize()...") end
 initialize()
-print("🐱 [DEBUG] initialize() returned!")
+if Constants.DEBUG then print("🐱 [DEBUG] initialize() returned!") end

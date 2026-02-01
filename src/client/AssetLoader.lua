@@ -455,7 +455,7 @@ end
 
 -- Print status (for debugging)
 function AssetLoader.printStatus()
-    print("🐱 Asset Loader Status:")
+    if Constants.DEBUG then print("🐱 Asset Loader Status:") end
     print("  Using real 3D models:", AssetLoader.hasRealModels())
 
     local assetCount = 0

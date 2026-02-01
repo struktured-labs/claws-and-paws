@@ -5,6 +5,9 @@
 
 local SettingsManager = {}
 
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Constants = require(ReplicatedStorage:WaitForChild("Shared")).Constants
+
 -- Color theme presets - DIVERSE colors that contrast well with pieces!
 local COLOR_THEMES = {
     ["Forest Floor"] = {
@@ -74,21 +77,25 @@ local currentSettings = {}
 
 -- Initialize settings
 function SettingsManager.init()
-    -- Try to load saved settings
     local Players = game:GetService("Players")
     local LocalPlayer = Players.LocalPlayer
 
-    -- For now, just use defaults (later can add DataStore persistence)
+    -- Load from player attributes (set by server DataStore) or use defaults
     for key, value in pairs(DEFAULT_SETTINGS) do
-        currentSettings[key] = value
+        local saved = LocalPlayer:GetAttribute(key)
+        if saved ~= nil then
+            currentSettings[key] = saved
+        else
+            currentSettings[key] = value
+        end
     end
 
-    -- Store volume settings as player attributes for cross-module access
+    -- Ensure volume attributes are set for cross-module access
     LocalPlayer:SetAttribute("masterVolume", currentSettings.masterVolume)
     LocalPlayer:SetAttribute("musicVolume", currentSettings.musicVolume)
     LocalPlayer:SetAttribute("sfxVolume", currentSettings.sfxVolume)
 
-    print("🐱 [SETTINGS] Initialized with defaults")
+    if Constants.DEBUG then print("🐱 [SETTINGS] Initialized (loaded from DataStore where available)") end
 end
 
 -- Get current setting value
@@ -99,9 +106,11 @@ end
 -- Set a setting value
 function SettingsManager.set(key, value)
     currentSettings[key] = value
-    print("🐱 [SETTINGS] Set " .. key .. " = " .. tostring(value))
+    if Constants.DEBUG then print("🐱 [SETTINGS] Set " .. key .. " = " .. tostring(value)) end
 
-    -- TODO: Save to DataStore for persistence
+    -- Write to player attribute (triggers server-side DataStore save)
+    local Players = game:GetService("Players")
+    Players.LocalPlayer:SetAttribute(key, value)
 end
 
 -- Get all color themes

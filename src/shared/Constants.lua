@@ -5,6 +5,9 @@
 
 local Constants = {}
 
+-- Debug mode - set to true to enable verbose logging
+Constants.DEBUG = false
+
 -- Board Configuration
 Constants.BOARD_SIZE = 6
 Constants.SQUARE_COUNT = Constants.BOARD_SIZE * Constants.BOARD_SIZE
@@ -150,8 +153,5 @@ Constants.GameEndReason = {
     AGREEMENT = "DrawAgreement",
     DISCONNECT = "Disconnect",
 }
-
--- Test sync from Linux to Studio!
-print("🐱 Claws & Paws loaded! Meow! 🐾")
 
 return Constants

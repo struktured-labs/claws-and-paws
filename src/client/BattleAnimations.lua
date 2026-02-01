@@ -5,6 +5,8 @@
 ]]
 
 local TweenService = game:GetService("TweenService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Constants = require(ReplicatedStorage:WaitForChild("Shared")).Constants
 local BattleAnimations = {}
 
 -- Track active fight so it can be skipped
@@ -291,7 +293,7 @@ end
 -- Skip the current fight animation
 function BattleAnimations.skipFight()
     if activeFight and not activeFight.cancelled then
-        print("🐱 [ANIM] Fight skipped!")
+        if Constants.DEBUG then print("🐱 [ANIM] Fight skipped!") end
         cancelAllTweens(activeFight)
         -- onComplete will be called by the fight coroutine when it detects cancellation
     end

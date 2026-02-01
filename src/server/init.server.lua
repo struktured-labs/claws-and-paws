@@ -11,12 +11,16 @@ local Constants = Shared.Constants
 local ChessEngine = Shared.ChessEngine
 local ChessAI = Shared.ChessAI
 local LogCollector = require(script.LogCollector)
+local PlayerDataStore = require(script.PlayerDataStore)
+
+-- Initialize player data persistence
+PlayerDataStore.init()
 
 -- Check if ChessAI loaded
 if ChessAI then
-    print("🐱 [SERVER] ChessAI loaded successfully!")
+    if Constants.DEBUG then print("🐱 [SERVER] ChessAI loaded successfully!") end
 else
-    warn("🐱 [SERVER] ChessAI is nil! AI games won't work.")
+    if Constants.DEBUG then warn("🐱 [SERVER] ChessAI is nil! AI games won't work.") end
 end
 
 -- RemoteEvents for client-server communication (create BEFORE LogCollector)
@@ -156,8 +160,8 @@ function GameSession:updateTimeRemaining()
         else
             self.engine.gameState = Constants.GameState.WHITE_WIN
         end
-        print(string.format("🐱 [SERVER] Game ended by timeout! %s ran out of time.",
-            currentPlayer == Constants.Color.WHITE and "White" or "Black"))
+        if Constants.DEBUG then print(string.format("🐱 [SERVER] Game ended by timeout! %s ran out of time.",
+            currentPlayer == Constants.Color.WHITE and "White" or "Black")) end
     end
 end
 
@@ -169,7 +173,7 @@ local function scheduleGameCleanup(gameId, delay)
             if session.engine.gameState ~= Constants.GameState.IN_PROGRESS
                 and session.engine.gameState ~= Constants.GameState.WAITING then
                 ActiveGames[gameId] = nil
-                print(string.format("🐱 [SERVER] Cleaned up finished game %s", gameId))
+                if Constants.DEBUG then print(string.format("🐱 [SERVER] Cleaned up finished game %s", gameId)) end
             end
         end
     end)
@@ -199,10 +203,10 @@ function GameSession:broadcastState()
 
     -- CRITICAL BUG CHECK: If we're missing pieces, something is very wrong!
     if pieceCount < 12 then
-        warn(string.format("🐱 [SERVER] ⚠️ CRITICAL: Only %d pieces in state! Expected at least 12.", pieceCount))
+        if Constants.DEBUG then warn(string.format("🐱 [SERVER] ⚠️ CRITICAL: Only %d pieces in state! Expected at least 12.", pieceCount)) end
     end
 
-    print(string.format("🐱 [SERVER] Broadcasting state with %d pieces (flat array)", pieceCount))
+    if Constants.DEBUG then print(string.format("🐱 [SERVER] Broadcasting state with %d pieces (flat array)", pieceCount)) end
 
     if self.player1 then
         GetGameStateFunction:InvokeClient(self.player1, state)
@@ -225,7 +229,7 @@ function GameSession:startTimeoutMonitor()
             task.wait(1)
             self:updateTimeRemaining()
             if self.engine.gameState ~= Constants.GameState.IN_PROGRESS then
-                print("🐱 [SERVER] Timeout monitor detected game end, broadcasting...")
+                if Constants.DEBUG then print("🐱 [SERVER] Timeout monitor detected game end, broadcasting...") end
                 self:broadcastState()
                 break
             end
@@ -237,7 +241,7 @@ end
 function GameSession:startAIvsAILoop()
     if not self.isAIvsAI then return end
 
-    print("🐱 [SERVER] Starting AI vs AI game loop")
+    if Constants.DEBUG then print("🐱 [SERVER] Starting AI vs AI game loop") end
 
     task.spawn(function()
         while self.engine.gameState == Constants.GameState.IN_PROGRESS do
@@ -260,7 +264,7 @@ function GameSession:startAIvsAILoop()
                 or self.blackDifficulty
 
             local turnName = self.engine.currentTurn == Constants.Color.WHITE and "White" or "Black"
-            print(string.format("🐱 [SERVER] AI vs AI: %s's turn (difficulty: %s)", turnName, tostring(currentDifficulty)))
+            if Constants.DEBUG then print(string.format("🐱 [SERVER] AI vs AI: %s's turn (difficulty: %s)", turnName, tostring(currentDifficulty))) end
 
             if ChessAI and ChessAI.getBestMove then
                 local aiMove = ChessAI.getBestMove(self.engine, currentDifficulty)
@@ -270,24 +274,24 @@ function GameSession:startAIvsAILoop()
                         aiMove.to.row, aiMove.to.col
                     )
                     if success then
-                        print(string.format("🐱 [SERVER] AI vs AI: %s moved [%d,%d] → [%d,%d]",
-                            turnName, aiMove.from.row, aiMove.from.col, aiMove.to.row, aiMove.to.col))
+                        if Constants.DEBUG then print(string.format("🐱 [SERVER] AI vs AI: %s moved [%d,%d] → [%d,%d]",
+                            turnName, aiMove.from.row, aiMove.from.col, aiMove.to.row, aiMove.to.col)) end
                         self:broadcastState()
                     else
-                        warn("🐱 [SERVER] AI vs AI: Move failed!")
+                        if Constants.DEBUG then warn("🐱 [SERVER] AI vs AI: Move failed!") end
                         break
                     end
                 else
-                    warn("🐱 [SERVER] AI vs AI: No valid move found!")
+                    if Constants.DEBUG then warn("🐱 [SERVER] AI vs AI: No valid move found!") end
                     break
                 end
             else
-                warn("🐱 [SERVER] ChessAI not available!")
+                if Constants.DEBUG then warn("🐱 [SERVER] ChessAI not available!") end
                 break
             end
         end
 
-        print("🐱 [SERVER] AI vs AI game ended with state: " .. tostring(self.engine.gameState))
+        if Constants.DEBUG then print("🐱 [SERVER] AI vs AI game ended with state: " .. tostring(self.engine.gameState)) end
     end)
 end
 
@@ -382,7 +386,7 @@ local function handleMove(player, gameId, fromRow, fromCol, toRow, toCol, promot
                         session:broadcastState()
                     end
                 else
-                    warn("🐱 [SERVER] ChessAI not available for AI move!")
+                    if Constants.DEBUG then warn("🐱 [SERVER] ChessAI not available for AI move!") end
                 end
             end)
         end
@@ -422,8 +426,8 @@ end)
 -- Create AI vs AI game where player is just a spectator
 RequestAIvsAIGameEvent.OnServerEvent:Connect(function(player, whiteDifficulty, blackDifficulty)
     if not isValidGameMode(whiteDifficulty) or not isValidGameMode(blackDifficulty) then return end
-    print(string.format("🐱 [SERVER] Creating AI vs AI game: White=%s, Black=%s",
-        tostring(whiteDifficulty), tostring(blackDifficulty)))
+    if Constants.DEBUG then print(string.format("🐱 [SERVER] Creating AI vs AI game: White=%s, Black=%s",
+        tostring(whiteDifficulty), tostring(blackDifficulty))) end
 
     -- Create session with player as spectator (player1 but not playing)
     local session = GameSession.new(player, nil, whiteDifficulty, false, true, whiteDifficulty, blackDifficulty)

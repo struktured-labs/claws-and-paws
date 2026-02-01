@@ -7,6 +7,8 @@
 local MusicManager = {}
 
 local TweenService = game:GetService("TweenService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Constants = require(ReplicatedStorage:WaitForChild("Shared")).Constants
 
 -- Music tracks organized by mood
 -- Using Roblox audio library IDs (royalty-free)
@@ -117,12 +119,12 @@ function MusicManager.playMusic(trackType)
 
     local soundId = MUSIC_TRACKS[trackType]
     if not soundId then
-        warn("🐱 [MUSIC] Unknown track type: " .. tostring(trackType))
+        if Constants.DEBUG then warn("🐱 [MUSIC] Unknown track type: " .. tostring(trackType)) end
         soundId = MUSIC_TRACKS.MENU
     end
 
     local targetVolume = getEffectiveVolume()
-    print("🐱 [MUSIC] Playing track: " .. tostring(trackType) .. " (volume: " .. string.format("%.2f", targetVolume) .. ")")
+    if Constants.DEBUG then print("🐱 [MUSIC] Playing track: " .. tostring(trackType) .. " (volume: " .. string.format("%.2f", targetVolume) .. ")") end
 
     -- Create new sound first
     local newSound = Instance.new("Sound")
@@ -154,13 +156,13 @@ end
 -- Play music for a specific game mode
 function MusicManager.playForGameMode(gameMode)
     local trackType = MODE_MUSIC[gameMode] or "GAMEPLAY_PLAYFUL"
-    print("🐱 [MUSIC] Game mode: " .. tostring(gameMode) .. " → track: " .. trackType)
+    if Constants.DEBUG then print("🐱 [MUSIC] Game mode: " .. tostring(gameMode) .. " → track: " .. trackType) end
     return MusicManager.playMusic(trackType)
 end
 
 -- Play boss music (epic!)
 function MusicManager.playBossMusic()
-    print("🐱 [MUSIC] Playing BOSS music!")
+    if Constants.DEBUG then print("🐱 [MUSIC] Playing BOSS music!") end
     return MusicManager.playMusic("BOSS")
 end
 

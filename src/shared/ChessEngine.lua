@@ -209,24 +209,24 @@ end
 function ChessEngine:getValidMoves(row, col)
     local piece = self:getPiece(row, col)
     if not piece then
-        print("🐱 [ENGINE DEBUG] No piece at [" .. row .. "," .. col .. "]")
+        if Constants.DEBUG then print("🐱 [ENGINE DEBUG] No piece at [" .. row .. "," .. col .. "]") end
         return {}
     end
 
     local moves = self:getPseudoLegalMoves(row, col)
-    print("🐱 [ENGINE DEBUG] getPseudoLegalMoves returned " .. #moves .. " moves for piece at [" .. row .. "," .. col .. "]")
+    if Constants.DEBUG then print("🐱 [ENGINE DEBUG] getPseudoLegalMoves returned " .. #moves .. " moves for piece at [" .. row .. "," .. col .. "]") end
     local validMoves = {}
 
     -- Filter out moves that leave king in check
     for i, move in ipairs(moves) do
         local isLegal = self:isMoveLegal(row, col, move.row, move.col)
-        print("🐱 [ENGINE DEBUG] Move " .. i .. " to [" .. move.row .. "," .. move.col .. "] legal: " .. tostring(isLegal))
+        if Constants.DEBUG then print("🐱 [ENGINE DEBUG] Move " .. i .. " to [" .. move.row .. "," .. move.col .. "] legal: " .. tostring(isLegal)) end
         if isLegal then
             table.insert(validMoves, move)
         end
     end
 
-    print("🐱 [ENGINE DEBUG] Returning " .. #validMoves .. " valid moves")
+    if Constants.DEBUG then print("🐱 [ENGINE DEBUG] Returning " .. #validMoves .. " valid moves") end
     return validMoves
 end
 
@@ -437,7 +437,7 @@ end
 function ChessEngine:isMoveLegal(fromRow, fromCol, toRow, toCol)
     local piece = self:getPiece(fromRow, fromCol)
     if not piece then
-        print("🐱 [ENGINE DEBUG] isMoveLegal: no piece at [" .. fromRow .. "," .. fromCol .. "]")
+        if Constants.DEBUG then print("🐱 [ENGINE DEBUG] isMoveLegal: no piece at [" .. fromRow .. "," .. fromCol .. "]") end
         return false
     end
 
@@ -448,7 +448,7 @@ function ChessEngine:isMoveLegal(fromRow, fromCol, toRow, toCol)
 
     -- Check if own king is in check
     local inCheck = self:isInCheck(piece.color)
-    print("🐱 [ENGINE DEBUG] After move [" .. fromRow .. "," .. fromCol .. "]→[" .. toRow .. "," .. toCol .. "], inCheck=" .. tostring(inCheck))
+    if Constants.DEBUG then print("🐱 [ENGINE DEBUG] After move [" .. fromRow .. "," .. fromCol .. "]→[" .. toRow .. "," .. toCol .. "], inCheck=" .. tostring(inCheck)) end
 
     -- Undo move
     self.board[fromRow][fromCol] = piece
@@ -468,8 +468,8 @@ function ChessEngine:makeMove(fromRow, fromCol, toRow, toCol, promotionPiece)
             end
         end
     end
-    print(string.format("🐱 [ENGINE] BEFORE move [%d,%d]→[%d,%d]: %d total pieces on board",
-        fromRow, fromCol, toRow, toCol, pieceCountBefore))
+    if Constants.DEBUG then print(string.format("🐱 [ENGINE] BEFORE move [%d,%d]→[%d,%d]: %d total pieces on board",
+        fromRow, fromCol, toRow, toCol, pieceCountBefore)) end
 
     local piece = self:getPiece(fromRow, fromCol)
     if not piece then
@@ -506,7 +506,7 @@ function ChessEngine:makeMove(fromRow, fromCol, toRow, toCol, promotionPiece)
     -- Handle capture
     local capturedPiece = self.board[toRow][toCol]
     if capturedPiece then
-        print(string.format("🐱 [ENGINE] Capturing %s at [%d,%d]", capturedPiece.type, toRow, toCol))
+        if Constants.DEBUG then print(string.format("🐱 [ENGINE] Capturing %s at [%d,%d]", capturedPiece.type, toRow, toCol)) end
         table.insert(self.capturedPieces[capturedPiece.color], capturedPiece)
         self.halfMoveClock = 0
     elseif piece.type == Constants.PieceType.PAWN then
@@ -516,7 +516,7 @@ function ChessEngine:makeMove(fromRow, fromCol, toRow, toCol, promotionPiece)
     end
 
     -- Make the move
-    print(string.format("🐱 [ENGINE] Moving piece from [%d,%d] to [%d,%d]", fromRow, fromCol, toRow, toCol))
+    if Constants.DEBUG then print(string.format("🐱 [ENGINE] Moving piece from [%d,%d] to [%d,%d]", fromRow, fromCol, toRow, toCol)) end
     self.board[toRow][toCol] = piece
     self.board[fromRow][fromCol] = nil
     piece.hasMoved = true
@@ -547,15 +547,15 @@ function ChessEngine:makeMove(fromRow, fromCol, toRow, toCol, promotionPiece)
             end
         end
     end
-    print(string.format("🐱 [ENGINE] AFTER move: %d total pieces on board (should be %d)",
-        pieceCountAfter, capturedPiece and (pieceCountBefore - 1) or pieceCountBefore))
+    if Constants.DEBUG then print(string.format("🐱 [ENGINE] AFTER move: %d total pieces on board (should be %d)",
+        pieceCountAfter, capturedPiece and (pieceCountBefore - 1) or pieceCountBefore)) end
 
     if capturedPiece and pieceCountAfter ~= (pieceCountBefore - 1) then
-        warn(string.format("🐱 [ENGINE] ⚠️ PIECE MISMATCH! Expected %d after capture, got %d",
-            pieceCountBefore - 1, pieceCountAfter))
+        if Constants.DEBUG then warn(string.format("🐱 [ENGINE] ⚠️ PIECE MISMATCH! Expected %d after capture, got %d",
+            pieceCountBefore - 1, pieceCountAfter)) end
     elseif not capturedPiece and pieceCountAfter ~= pieceCountBefore then
-        warn(string.format("🐱 [ENGINE] ⚠️ PIECE MISMATCH! Expected %d after move, got %d",
-            pieceCountBefore, pieceCountAfter))
+        if Constants.DEBUG then warn(string.format("🐱 [ENGINE] ⚠️ PIECE MISMATCH! Expected %d after move, got %d",
+            pieceCountBefore, pieceCountAfter)) end
     end
 
     -- Switch turn
@@ -668,7 +668,19 @@ function ChessEngine:serialize()
         end
     end
 
-    print(string.format("🐱 [ENGINE] serialize(): %d pieces serialized as flat array", #pieces))
+    if Constants.DEBUG then print(string.format("🐱 [ENGINE] serialize(): %d pieces serialized as flat array", #pieces)) end
+
+    -- Extract last move for highlighting
+    local lastMove = nil
+    if #self.moveHistory > 0 then
+        local last = self.moveHistory[#self.moveHistory]
+        lastMove = {
+            fromRow = last.from.row,
+            fromCol = last.from.col,
+            toRow = last.to.row,
+            toCol = last.to.col,
+        }
+    end
 
     local data = {
         pieces = pieces,  -- Flat array instead of 2D board
@@ -676,6 +688,7 @@ function ChessEngine:serialize()
         gameState = self.gameState,
         moveHistory = self.moveHistory,
         halfMoveClock = self.halfMoveClock,
+        lastMove = lastMove,
     }
 
     return data
