@@ -233,8 +233,9 @@ local function animateMove(boardFolder, fromRow, fromCol, toRow, toCol, isCaptur
         -- Show "Click to skip" hint
         local skipHint = Instance.new("TextLabel")
         skipHint.Name = "SkipHint"
-        skipHint.Size = UDim2.new(0, 200, 0, 30)
-        skipHint.Position = UDim2.new(0.5, -100, 0.85, 0)
+        skipHint.Size = UDim2.new(0.5, 0, 0, 28)
+        skipHint.AnchorPoint = Vector2.new(0.5, 0)
+        skipHint.Position = UDim2.new(0.5, 0, 0.85, 0)
         skipHint.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
         skipHint.BackgroundTransparency = 0.3
         skipHint.Text = "Click to skip animation"
@@ -879,12 +880,18 @@ end
 local function createAIvsAIPopup(mainMenuFrame)
     local popup = Instance.new("Frame")
     popup.Name = "AIvsAIPopup"
-    popup.Size = UDim2.new(0, 320, 0, 280)
-    popup.Position = UDim2.new(0.5, -160, 0.5, -140)
+    popup.Size = UDim2.new(0.9, 0, 0, 280)
+    popup.AnchorPoint = Vector2.new(0.5, 0.5)
+    popup.Position = UDim2.new(0.5, 0, 0.5, 0)
     popup.BackgroundColor3 = Color3.fromRGB(50, 50, 60)
     popup.BorderSizePixel = 0
     popup.Visible = false
     popup.Parent = mainMenuFrame.Parent
+
+    local popupConstraint = Instance.new("UISizeConstraint")
+    popupConstraint.MaxSize = Vector2.new(320, 280)
+    popupConstraint.MinSize = Vector2.new(240, 260)
+    popupConstraint.Parent = popup
 
     local corner = Instance.new("UICorner")
     corner.CornerRadius = UDim.new(0, 10)
@@ -897,12 +904,13 @@ local function createAIvsAIPopup(mainMenuFrame)
 
     local title = Instance.new("TextLabel")
     title.Name = "Title"
-    title.Size = UDim2.new(1, 0, 0, 40)
+    title.Size = UDim2.new(1, 0, 0, 36)
     title.BackgroundTransparency = 1
-    title.Text = "🤖 Watch AI vs AI 🤖"
+    title.Text = "Watch AI vs AI"
     title.TextColor3 = Color3.fromRGB(255, 200, 100)
     title.Font = Enum.Font.FredokaOne
-    title.TextSize = 24
+    title.TextSize = 22
+    title.TextScaled = true
     title.Parent = popup
 
     -- Difficulty options
@@ -919,13 +927,14 @@ local function createAIvsAIPopup(mainMenuFrame)
     -- White AI selector
     local whiteLabel = Instance.new("TextLabel")
     whiteLabel.Name = "WhiteLabel"
-    whiteLabel.Size = UDim2.new(0, 280, 0, 25)
-    whiteLabel.Position = UDim2.new(0.5, -140, 0, 45)
+    whiteLabel.Size = UDim2.new(0.9, 0, 0, 22)
+    whiteLabel.AnchorPoint = Vector2.new(0.5, 0)
+    whiteLabel.Position = UDim2.new(0.5, 0, 0, 42)
     whiteLabel.BackgroundTransparency = 1
-    whiteLabel.Text = "White AI Difficulty:"
+    whiteLabel.Text = "White AI:"
     whiteLabel.TextColor3 = Color3.fromRGB(240, 240, 240)
     whiteLabel.Font = Enum.Font.GothamBold
-    whiteLabel.TextSize = 16
+    whiteLabel.TextSize = 15
     whiteLabel.TextXAlignment = Enum.TextXAlignment.Left
     whiteLabel.Parent = popup
 
@@ -933,8 +942,8 @@ local function createAIvsAIPopup(mainMenuFrame)
     for i, diff in ipairs(difficulties) do
         local btn = Instance.new("TextButton")
         btn.Name = "White_" .. diff.mode
-        btn.Size = UDim2.new(0, 85, 0, 32)
-        btn.Position = UDim2.new(0, 15 + (i - 1) * 95, 0, 75)
+        btn.Size = UDim2.new(0.3, -4, 0, 30)
+        btn.Position = UDim2.new((i - 1) * 0.33 + 0.02, 0, 0, 68)
         btn.BackgroundColor3 = diff.mode == selectedWhite
             and Color3.fromRGB(100, 180, 100)
             or Color3.fromRGB(80, 80, 100)
@@ -965,13 +974,14 @@ local function createAIvsAIPopup(mainMenuFrame)
     -- Black AI selector
     local blackLabel = Instance.new("TextLabel")
     blackLabel.Name = "BlackLabel"
-    blackLabel.Size = UDim2.new(0, 280, 0, 25)
-    blackLabel.Position = UDim2.new(0.5, -140, 0, 120)
+    blackLabel.Size = UDim2.new(0.9, 0, 0, 22)
+    blackLabel.AnchorPoint = Vector2.new(0.5, 0)
+    blackLabel.Position = UDim2.new(0.5, 0, 0, 108)
     blackLabel.BackgroundTransparency = 1
-    blackLabel.Text = "Black AI Difficulty:"
+    blackLabel.Text = "Black AI:"
     blackLabel.TextColor3 = Color3.fromRGB(80, 80, 80)
     blackLabel.Font = Enum.Font.GothamBold
-    blackLabel.TextSize = 16
+    blackLabel.TextSize = 15
     blackLabel.TextXAlignment = Enum.TextXAlignment.Left
     blackLabel.Parent = popup
 
@@ -979,8 +989,8 @@ local function createAIvsAIPopup(mainMenuFrame)
     for i, diff in ipairs(difficulties) do
         local btn = Instance.new("TextButton")
         btn.Name = "Black_" .. diff.mode
-        btn.Size = UDim2.new(0, 85, 0, 32)
-        btn.Position = UDim2.new(0, 15 + (i - 1) * 95, 0, 150)
+        btn.Size = UDim2.new(0.3, -4, 0, 30)
+        btn.Position = UDim2.new((i - 1) * 0.33 + 0.02, 0, 0, 134)
         btn.BackgroundColor3 = diff.mode == selectedBlack
             and Color3.fromRGB(60, 60, 60)
             or Color3.fromRGB(80, 80, 100)
@@ -1011,8 +1021,9 @@ local function createAIvsAIPopup(mainMenuFrame)
     -- Start button
     local startBtn = Instance.new("TextButton")
     startBtn.Name = "StartButton"
-    startBtn.Size = UDim2.new(0, 200, 0, 40)
-    startBtn.Position = UDim2.new(0.5, -100, 0, 195)
+    startBtn.Size = UDim2.new(0.7, 0, 0, 38)
+    startBtn.AnchorPoint = Vector2.new(0.5, 0)
+    startBtn.Position = UDim2.new(0.5, 0, 0, 178)
     startBtn.BackgroundColor3 = Color3.fromRGB(80, 180, 80)
     startBtn.BorderSizePixel = 0
     startBtn.Text = "▶️ Start Match"
@@ -1044,8 +1055,9 @@ local function createAIvsAIPopup(mainMenuFrame)
     -- Cancel button
     local cancelBtn = Instance.new("TextButton")
     cancelBtn.Name = "CancelButton"
-    cancelBtn.Size = UDim2.new(0, 80, 0, 30)
-    cancelBtn.Position = UDim2.new(0.5, -40, 0, 240)
+    cancelBtn.Size = UDim2.new(0.35, 0, 0, 28)
+    cancelBtn.AnchorPoint = Vector2.new(0.5, 0)
+    cancelBtn.Position = UDim2.new(0.5, 0, 0, 224)
     cancelBtn.BackgroundColor3 = Color3.fromRGB(120, 80, 80)
     cancelBtn.BorderSizePixel = 0
     cancelBtn.Text = "Cancel"
