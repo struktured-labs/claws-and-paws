@@ -807,6 +807,13 @@ test("hash includes turn information", function()
     e.currentTurn = Constants.Color.WHITE -- restore
 end)
 
+test("initial position is recorded in positionHistory", function()
+    local e = ChessEngine.new()
+    e:setupBoard()
+    local hash = e:getPositionHash()
+    assert_eq(e.positionHistory[hash], 1, "initial position should be counted once")
+end)
+
 ----------------------------------------------------------------------
 log("\n=== Campaign Data ===")
 ----------------------------------------------------------------------

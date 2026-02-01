@@ -132,6 +132,9 @@ function ChessEngine:setupBoard(seed)
 
     self.gameState = Constants.GameState.IN_PROGRESS
     self.currentTurn = Constants.Color.WHITE
+
+    -- Record initial position for threefold repetition detection
+    self:recordPosition()
 end
 
 -- Generate Fischer Random arrangement for 6 pieces

@@ -110,10 +110,13 @@ local function fadeIn(sound, targetVolume, duration)
     tween:Play()
 end
 
+-- Track types that should not loop (one-shot)
+local ONE_SHOT_TRACKS = { VICTORY = true, DEFEAT = true }
+
 -- Play a music track with crossfade
 function MusicManager.playMusic(trackType)
-    -- Don't restart the same track
-    if currentTrackType == trackType and currentTrack and currentTrack.Parent then
+    -- Don't restart the same track (unless it's a one-shot, which may need replaying)
+    if currentTrackType == trackType and currentTrack and currentTrack.Parent and not ONE_SHOT_TRACKS[trackType] then
         return currentTrack
     end
 
@@ -130,7 +133,7 @@ function MusicManager.playMusic(trackType)
     local newSound = Instance.new("Sound")
     newSound.Name = "BackgroundMusic_" .. (trackType or "unknown")
     newSound.SoundId = soundId
-    newSound.Looped = true
+    newSound.Looped = not ONE_SHOT_TRACKS[trackType]
     newSound.Parent = workspace
 
     -- Crossfade: fade out old, fade in new
