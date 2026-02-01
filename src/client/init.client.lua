@@ -1197,29 +1197,64 @@ local function createMainMenu()
         return button
     end
 
-    -- Searching for opponent label (hidden until multiplayer mode selected)
+    -- Searching for opponent panel (hidden until multiplayer mode selected)
+    local pendingMatchMode = nil
+
+    local searchingPanel = Instance.new("Frame")
+    searchingPanel.Name = "SearchingLabel"  -- Keep name for existing hide logic
+    searchingPanel.Size = UDim2.new(0.8, 0, 0, 100)
+    searchingPanel.AnchorPoint = Vector2.new(0.5, 0.5)
+    searchingPanel.Position = UDim2.new(0.5, 0, 0.5, 0)
+    searchingPanel.BackgroundColor3 = Color3.fromRGB(45, 42, 55)
+    searchingPanel.BackgroundTransparency = 0.2
+    searchingPanel.Visible = false
+    searchingPanel.ZIndex = 5
+    searchingPanel.Parent = screenGui
+
+    local searchCorner = Instance.new("UICorner")
+    searchCorner.CornerRadius = UDim.new(0, 12)
+    searchCorner.Parent = searchingPanel
+
+    local searchConstraint = Instance.new("UISizeConstraint")
+    searchConstraint.MaxSize = Vector2.new(360, 100)
+    searchConstraint.Parent = searchingPanel
+
     local searchingLabel = Instance.new("TextLabel")
-    searchingLabel.Name = "SearchingLabel"
-    searchingLabel.Size = UDim2.new(0.8, 0, 0, 50)
-    searchingLabel.AnchorPoint = Vector2.new(0.5, 0.5)
-    searchingLabel.Position = UDim2.new(0.5, 0, 0.5, 0)
-    searchingLabel.BackgroundColor3 = Color3.fromRGB(45, 42, 55)
-    searchingLabel.BackgroundTransparency = 0.2
+    searchingLabel.Name = "SearchText"
+    searchingLabel.Size = UDim2.new(1, 0, 0, 45)
+    searchingLabel.BackgroundTransparency = 1
     searchingLabel.Text = "Searching for opponent..."
     searchingLabel.TextColor3 = Color3.fromRGB(255, 200, 100)
     searchingLabel.Font = Enum.Font.FredokaOne
     searchingLabel.TextSize = 22
-    searchingLabel.Visible = false
-    searchingLabel.ZIndex = 5
-    searchingLabel.Parent = screenGui
+    searchingLabel.Parent = searchingPanel
 
-    local searchCorner = Instance.new("UICorner")
-    searchCorner.CornerRadius = UDim.new(0, 12)
-    searchCorner.Parent = searchingLabel
+    local cancelSearchBtn = Instance.new("TextButton")
+    cancelSearchBtn.Name = "CancelSearch"
+    cancelSearchBtn.Size = UDim2.new(0.5, 0, 0, 36)
+    cancelSearchBtn.AnchorPoint = Vector2.new(0.5, 0)
+    cancelSearchBtn.Position = UDim2.new(0.5, 0, 0, 50)
+    cancelSearchBtn.BackgroundColor3 = Color3.fromRGB(160, 70, 70)
+    cancelSearchBtn.Text = "Cancel"
+    cancelSearchBtn.TextColor3 = Color3.new(1, 1, 1)
+    cancelSearchBtn.Font = Enum.Font.GothamBold
+    cancelSearchBtn.TextSize = 16
+    cancelSearchBtn.Parent = searchingPanel
 
-    local searchConstraint = Instance.new("UISizeConstraint")
-    searchConstraint.MaxSize = Vector2.new(360, 50)
-    searchConstraint.Parent = searchingLabel
+    local cancelCorner = Instance.new("UICorner")
+    cancelCorner.CornerRadius = UDim.new(0, 8)
+    cancelCorner.Parent = cancelSearchBtn
+
+    cancelSearchBtn.MouseButton1Click:Connect(function()
+        SoundManager.playSelectSound()
+        if pendingMatchMode then
+            CancelMatchEvent:FireServer(pendingMatchMode)
+            pendingMatchMode = nil
+        end
+        searchingPanel.Visible = false
+        frame.Visible = true
+        MusicManager.playMenuMusic()
+    end)
 
     -- Game mode buttons
     local buttons = {
@@ -1238,7 +1273,8 @@ local function createMainMenu()
                 RequestAIGameEvent:FireServer(btnData.mode)
             else
                 RequestMatchEvent:FireServer(btnData.mode)
-                searchingLabel.Visible = true
+                pendingMatchMode = btnData.mode
+                searchingPanel.Visible = true
             end
             MusicManager.playForGameMode(btnData.mode)
             frame.Visible = false
