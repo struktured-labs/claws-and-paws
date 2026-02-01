@@ -78,6 +78,8 @@ Constants.GameMode = {
     AI_EASY = "AI_Easy",
     AI_MEDIUM = "AI_Medium",
     AI_HARD = "AI_Hard",
+    AI_EXPERT = "AI_Expert",
+    AI_NIGHTMARE = "AI_Nightmare",
     PUZZLE = "Puzzle",
     SPEED_1MIN = "Speed1",
     SPEED_3MIN = "Speed3",
@@ -94,6 +96,8 @@ Constants.TimeControl = {
     [Constants.GameMode.AI_EASY] = 600,
     [Constants.GameMode.AI_MEDIUM] = 600,
     [Constants.GameMode.AI_HARD] = 600,
+    [Constants.GameMode.AI_EXPERT] = 600,
+    [Constants.GameMode.AI_NIGHTMARE] = 600,
 }
 
 -- AI Difficulty (minimax depth)
@@ -101,6 +105,8 @@ Constants.AIDepth = {
     [Constants.GameMode.AI_EASY] = 1,
     [Constants.GameMode.AI_MEDIUM] = 3,
     [Constants.GameMode.AI_HARD] = 5,
+    [Constants.GameMode.AI_EXPERT] = 7,
+    [Constants.GameMode.AI_NIGHTMARE] = 9,
 }
 
 -- Cat Gestures (emote menu)

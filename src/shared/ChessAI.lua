@@ -13,7 +13,7 @@ function ChessAI.minimax(engine, depth, alpha, beta, maximizingPlayer)
         return engine:evaluate(), nil
     end
 
-    local moves = engine:getAllLegalMoves()
+    local moves = ChessAI.orderMoves(engine, engine:getAllLegalMoves())
 
     if #moves == 0 then
         if engine:isInCheck(engine.currentTurn) then
@@ -77,13 +77,17 @@ function ChessAI.getBestMove(engine, difficulty)
         end
     end
 
-    -- Hard AI: use iterative deepening with time limit
-    -- Start at depth 1, increase until we hit the target depth or time limit
+    -- Hard/Expert/Nightmare AI: use iterative deepening with time limit
     local startTime = tick and tick() or os.clock()
-    local timeLimit = 3.0 -- Max 3 seconds for Hard AI
+    local timeLimits = {
+        [Constants.GameMode.AI_HARD] = 3.0,
+        [Constants.GameMode.AI_EXPERT] = 5.0,
+        [Constants.GameMode.AI_NIGHTMARE] = 8.0,
+    }
+    local timeLimit = timeLimits[difficulty]
     local bestMove = nil
 
-    if difficulty == Constants.GameMode.AI_HARD and depth >= 4 then
+    if timeLimit and depth >= 4 then
         for d = 1, depth do
             local _, move = ChessAI.minimax(engine, d, -math.huge, math.huge, isMaximizing)
             if move then

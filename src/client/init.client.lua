@@ -1291,6 +1291,8 @@ local function createMainMenu()
                     AI_EASY = Constants.GameMode.AI_EASY,
                     AI_MEDIUM = Constants.GameMode.AI_MEDIUM,
                     AI_HARD = Constants.GameMode.AI_HARD,
+                    AI_EXPERT = Constants.GameMode.AI_EXPERT,
+                    AI_NIGHTMARE = Constants.GameMode.AI_NIGHTMARE,
                 }
                 local gameMode = modeMap[boss.aiDifficulty] or Constants.GameMode.AI_MEDIUM
                 RequestAIGameEvent:FireServer(gameMode)
