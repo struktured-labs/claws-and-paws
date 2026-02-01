@@ -1554,28 +1554,56 @@ local function createGameHUD()
     screenGui.Enabled = false
     screenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
 
-    -- Turn indicator (bigger and more prominent)
+    -- Turn indicator (responsive, centered)
     local turnLabel = Instance.new("TextLabel")
     turnLabel.Name = "TurnLabel"
-    turnLabel.Size = UDim2.new(0, 400, 0, 70)
-    turnLabel.Position = UDim2.new(0.5, -200, 0, 20)
+    turnLabel.Size = UDim2.new(0.8, 0, 0, 50)
+    turnLabel.AnchorPoint = Vector2.new(0.5, 0)
+    turnLabel.Position = UDim2.new(0.5, 0, 0, 15)
     turnLabel.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
     turnLabel.BackgroundTransparency = 0.2
-    turnLabel.Text = "⏳ Waiting for game..."
+    turnLabel.Text = "Waiting for game..."
     turnLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
     turnLabel.Font = Enum.Font.FredokaOne
-    turnLabel.TextSize = 32
+    turnLabel.TextSize = 24
+    turnLabel.TextScaled = true
     turnLabel.Parent = screenGui
 
+    local turnSizeConstraint = Instance.new("UISizeConstraint")
+    turnSizeConstraint.MaxSize = Vector2.new(400, 50)
+    turnSizeConstraint.Parent = turnLabel
+
     local corner = Instance.new("UICorner")
-    corner.CornerRadius = UDim.new(0, 15)
+    corner.CornerRadius = UDim.new(0, 12)
     corner.Parent = turnLabel
+
+    local turnPadding = Instance.new("UIPadding")
+    turnPadding.PaddingLeft = UDim.new(0, 10)
+    turnPadding.PaddingRight = UDim.new(0, 10)
+    turnPadding.Parent = turnLabel
 
     -- Add stroke for better visibility
     local stroke = Instance.new("UIStroke")
     stroke.Color = Color3.fromRGB(255, 200, 100)
-    stroke.Thickness = 3
+    stroke.Thickness = 2
     stroke.Parent = turnLabel
+
+    -- Capture counter (shows pieces taken by each side)
+    local captureLabel = Instance.new("TextLabel")
+    captureLabel.Name = "CaptureLabel"
+    captureLabel.Size = UDim2.new(0.6, 0, 0, 24)
+    captureLabel.AnchorPoint = Vector2.new(0.5, 0)
+    captureLabel.Position = UDim2.new(0.5, 0, 0, 68)
+    captureLabel.BackgroundTransparency = 1
+    captureLabel.Text = ""
+    captureLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+    captureLabel.Font = Enum.Font.GothamMedium
+    captureLabel.TextSize = 14
+    captureLabel.Parent = screenGui
+
+    local captureSizeConstraint = Instance.new("UISizeConstraint")
+    captureSizeConstraint.MaxSize = Vector2.new(400, 24)
+    captureSizeConstraint.Parent = captureLabel
 
     -- Chess Clock Container (left side of screen)
     local clockContainer = Instance.new("Frame")
@@ -1675,18 +1703,19 @@ local function createGameHUD()
     -- Player color indicator (shows if you're white or black)
     local colorLabel = Instance.new("TextLabel")
     colorLabel.Name = "ColorLabel"
-    colorLabel.Size = UDim2.new(0, 200, 0, 50)
-    colorLabel.Position = UDim2.new(0.5, -100, 0, 100)
+    colorLabel.Size = UDim2.new(0, 160, 0, 30)
+    colorLabel.AnchorPoint = Vector2.new(0.5, 0)
+    colorLabel.Position = UDim2.new(0.5, 0, 0, 94)
     colorLabel.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
     colorLabel.BackgroundTransparency = 0.3
-    colorLabel.Text = "You are: ?"
+    colorLabel.Text = ""
     colorLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
     colorLabel.Font = Enum.Font.GothamBold
-    colorLabel.TextSize = 24
+    colorLabel.TextSize = 16
     colorLabel.Parent = screenGui
 
     local colorCorner = Instance.new("UICorner")
-    colorCorner.CornerRadius = UDim.new(0, 10)
+    colorCorner.CornerRadius = UDim.new(0, 8)
     colorCorner.Parent = colorLabel
 
     -- Resign button
@@ -1935,6 +1964,49 @@ local function createGameHUD()
         end)
     end)
 
+    -- Move history panel (right side, collapsible)
+    local historyPanel = Instance.new("Frame")
+    historyPanel.Name = "MoveHistory"
+    historyPanel.Size = UDim2.new(0, 140, 0, 200)
+    historyPanel.Position = UDim2.new(1, -155, 0.5, -100)
+    historyPanel.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
+    historyPanel.BackgroundTransparency = 0.1
+    historyPanel.BorderSizePixel = 0
+    historyPanel.Parent = screenGui
+
+    Instance.new("UICorner", historyPanel).CornerRadius = UDim.new(0, 8)
+    Instance.new("UIStroke", historyPanel).Color = Color3.fromRGB(70, 70, 80)
+
+    local historyTitle = Instance.new("TextLabel")
+    historyTitle.Size = UDim2.new(1, 0, 0, 22)
+    historyTitle.BackgroundTransparency = 1
+    historyTitle.Text = "Moves"
+    historyTitle.TextColor3 = Color3.fromRGB(200, 200, 200)
+    historyTitle.Font = Enum.Font.GothamBold
+    historyTitle.TextSize = 13
+    historyTitle.Parent = historyPanel
+
+    local historyScroll = Instance.new("ScrollingFrame")
+    historyScroll.Name = "HistoryScroll"
+    historyScroll.Size = UDim2.new(1, -8, 1, -26)
+    historyScroll.Position = UDim2.new(0, 4, 0, 22)
+    historyScroll.BackgroundTransparency = 1
+    historyScroll.BorderSizePixel = 0
+    historyScroll.ScrollBarThickness = 3
+    historyScroll.CanvasSize = UDim2.new(0, 0, 0, 0)
+    historyScroll.Parent = historyPanel
+
+    local historyLayout = Instance.new("UIListLayout")
+    historyLayout.Padding = UDim.new(0, 2)
+    historyLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    historyLayout.Parent = historyScroll
+
+    historyLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+        historyScroll.CanvasSize = UDim2.new(0, 0, 0, historyLayout.AbsoluteContentSize.Y + 4)
+        -- Auto-scroll to bottom
+        historyScroll.CanvasPosition = Vector2.new(0, math.max(0, historyLayout.AbsoluteContentSize.Y - historyScroll.AbsoluteSize.Y))
+    end)
+
     -- New Game button (hidden until game ends)
     local newGameBtn = Instance.new("TextButton")
     newGameBtn.Name = "NewGameButton"
@@ -1967,6 +2039,14 @@ local function createGameHUD()
         ClientState.localTimeWhite = 600
         ClientState.localTimeBlack = 600
         ClientState.clockRunning = false
+
+        -- Clear move history
+        local historyScroll = screenGui:FindFirstChild("MoveHistory") and screenGui:FindFirstChild("MoveHistory"):FindFirstChild("HistoryScroll")
+        if historyScroll then
+            for _, child in ipairs(historyScroll:GetChildren()) do
+                if child:IsA("TextLabel") then child:Destroy() end
+            end
+        end
 
         -- Switch back to menu music
         MusicManager.playMenuMusic()
@@ -2410,6 +2490,68 @@ local function initialize()
                 -- Hide resign button
                 local resignBtnEnd = gameHUD:FindFirstChild("ResignButton")
                 if resignBtnEnd then resignBtnEnd.Visible = false end
+            end
+        end
+
+        -- Update capture counter
+        local captureLabel = gameHUD:FindFirstChild("CaptureLabel")
+        if captureLabel and gameState.pieces then
+            local whitePieces, blackPieces = 0, 0
+            for _, piece in ipairs(gameState.pieces) do
+                if piece.color == Constants.Color.WHITE then
+                    whitePieces = whitePieces + 1
+                else
+                    blackPieces = blackPieces + 1
+                end
+            end
+            -- Starting pieces: 12 each (K, Q, R, 2B, N, 6P = 12)
+            local whiteCaptured = 12 - blackPieces
+            local blackCaptured = 12 - whitePieces
+            if whiteCaptured > 0 or blackCaptured > 0 then
+                captureLabel.Text = string.format("White took %d | Black took %d", whiteCaptured, blackCaptured)
+            else
+                captureLabel.Text = ""
+            end
+        end
+
+        -- Update move history panel
+        local historyPanel = gameHUD:FindFirstChild("MoveHistory")
+        if historyPanel and gameState.moveHistory then
+            local historyScroll = historyPanel:FindFirstChild("HistoryScroll")
+            if historyScroll then
+                local colLetters = {"a", "b", "c", "d", "e", "f"}
+                local existingCount = #historyScroll:GetChildren() - 1 -- minus UIListLayout
+                local newMoves = #gameState.moveHistory
+
+                -- Only add new moves (don't rebuild entire list)
+                for i = existingCount + 1, newMoves do
+                    local move = gameState.moveHistory[i]
+                    if move then
+                        local pieceLetters = {
+                            [Constants.PieceType.KING] = "K",
+                            [Constants.PieceType.QUEEN] = "Q",
+                            [Constants.PieceType.ROOK] = "R",
+                            [Constants.PieceType.BISHOP] = "B",
+                            [Constants.PieceType.KNIGHT] = "N",
+                        }
+                        local pieceLetter = pieceLetters[move.piece] or ""
+                        local fromStr = (colLetters[move.from and move.from.col] or "?") .. tostring(move.from and move.from.row or "?")
+                        local toStr = (colLetters[move.to and move.to.col] or "?") .. tostring(move.to and move.to.row or "?")
+                        local captureStr = move.captured and "x" or "-"
+                        local moveText = string.format("%d. %s%s%s%s", i, pieceLetter, fromStr, captureStr, toStr)
+
+                        local moveLabel = Instance.new("TextLabel")
+                        moveLabel.Size = UDim2.new(1, 0, 0, 16)
+                        moveLabel.BackgroundTransparency = 1
+                        moveLabel.Text = moveText
+                        moveLabel.TextColor3 = (i % 2 == 1) and Color3.fromRGB(220, 220, 220) or Color3.fromRGB(180, 180, 220)
+                        moveLabel.Font = Enum.Font.Code
+                        moveLabel.TextSize = 11
+                        moveLabel.TextXAlignment = Enum.TextXAlignment.Left
+                        moveLabel.LayoutOrder = i
+                        moveLabel.Parent = historyScroll
+                    end
+                end
             end
         end
 
