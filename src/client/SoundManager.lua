@@ -6,7 +6,6 @@
 local SoundManager = {}
 
 -- Cat sound effects - curated from Roblox audio library
--- Fallback IDs (original placeholders) in comments if replacements fail
 local SOUNDS = {
     -- Movement sounds
     MEOW_HAPPY = "rbxassetid://138078642",       -- Kitty Meow (verified, 2k+ favs)
@@ -59,105 +58,90 @@ local function getSound(soundId, parent)
     return sound
 end
 
+-- Play a cached sound with explicit volume and pitch (prevents pitch corruption)
+local function playSound(soundId, volume, pitch)
+    local sound = getSound(soundId)
+    sound.Volume = getEffectiveVolume(volume)
+    sound.PlaybackSpeed = pitch or 1.0
+    sound:Play()
+end
+
 -- Play piece move sound (different per piece type)
 function SoundManager.playMoveSound(pieceType)
     local ReplicatedStorage = game:GetService("ReplicatedStorage")
     local Shared = require(ReplicatedStorage.Shared)
     local Constants = Shared.Constants
 
-    local soundId = SOUNDS.MEOW_CURIOUS -- Default
+    local soundId = SOUNDS.MEOW_CURIOUS
     local volume = 0.4
     local pitch = 1.0
 
-    -- Different sounds/pitches per piece type
     if pieceType == Constants.PieceType.KING then
-        soundId = SOUNDS.MEOW_HAPPY -- Deep, regal meow
+        soundId = SOUNDS.MEOW_HAPPY
         volume = 0.6
-        pitch = 0.8 -- Lower pitch
+        pitch = 0.8
     elseif pieceType == Constants.PieceType.QUEEN then
-        soundId = SOUNDS.PURR -- Elegant purr
+        soundId = SOUNDS.PURR
         volume = 0.5
-        pitch = 1.2 -- Higher pitch
+        pitch = 1.2
     elseif pieceType == Constants.PieceType.ROOK then
-        soundId = SOUNDS.GROWL -- Heavy, rumbling
+        soundId = SOUNDS.GROWL
         volume = 0.5
-        pitch = 0.7 -- Very low
+        pitch = 0.7
     elseif pieceType == Constants.PieceType.BISHOP then
-        soundId = SOUNDS.MEOW_CURIOUS -- Mystical meow
+        soundId = SOUNDS.MEOW_CURIOUS
         volume = 0.4
-        pitch = 1.3 -- Higher, ethereal
+        pitch = 1.3
     elseif pieceType == Constants.PieceType.KNIGHT then
-        soundId = SOUNDS.POUNCE -- Quick, aggressive
+        soundId = SOUNDS.POUNCE
         volume = 0.5
         pitch = 1.1
     elseif pieceType == Constants.PieceType.PAWN then
-        soundId = SOUNDS.CLICK_SOFT -- Soft, cute
+        soundId = SOUNDS.CLICK_SOFT
         volume = 0.3
-        pitch = 1.4 -- High pitched (kitten)
+        pitch = 1.4
     end
 
-    local sound = getSound(soundId)
-    sound.Volume = getEffectiveVolume(volume)
-    sound.PlaybackSpeed = pitch
-    sound:Play()
+    playSound(soundId, volume, pitch)
 end
 
 -- Play capture sound (hiss + pounce combo)
 function SoundManager.playCaptureSound()
     task.spawn(function()
-        local hiss = getSound(SOUNDS.HISS)
-        hiss.Volume = getEffectiveVolume(0.5)
-        hiss:Play()
-
+        playSound(SOUNDS.HISS, 0.5, 1.0)
         task.wait(0.2)
-
-        local pounce = getSound(SOUNDS.POUNCE)
-        pounce.Volume = getEffectiveVolume(0.6)
-        pounce:Play()
+        playSound(SOUNDS.POUNCE, 0.6, 1.0)
     end)
 end
 
 -- Play selection sound
 function SoundManager.playSelectSound()
-    local sound = getSound(SOUNDS.CLICK_SOFT)
-    sound.Volume = getEffectiveVolume(0.3)
-    sound:Play()
+    playSound(SOUNDS.CLICK_SOFT, 0.3, 1.0)
 end
 
 -- Play dismissive sound (can't move this piece / illegal move)
 function SoundManager.playDismissiveSound()
-    local sound = getSound(SOUNDS.MEOW_CURIOUS)
-    sound.Volume = getEffectiveVolume(0.4)
-    sound.PlaybackSpeed = 0.7  -- Lower pitch = annoyed "meh" sound
-    sound:Play()
+    playSound(SOUNDS.MEOW_CURIOUS, 0.4, 0.7)
 end
 
 -- Play check/threat sound
 function SoundManager.playCheckSound()
-    local sound = getSound(SOUNDS.GROWL)
-    sound.Volume = getEffectiveVolume(0.5)
-    sound:Play()
+    playSound(SOUNDS.GROWL, 0.5, 1.0)
 end
 
 -- Play victory sound
-function SoundManager.playVictorySound(winner)
-    local sound = getSound(SOUNDS.TRIUMPH)
-    sound.Volume = getEffectiveVolume(0.7)
-    sound:Play()
+function SoundManager.playVictorySound()
+    playSound(SOUNDS.TRIUMPH, 0.7, 1.0)
 end
 
 -- Play defeat sound
 function SoundManager.playDefeatSound()
-    local sound = getSound(SOUNDS.DEFEAT)
-    sound.Volume = getEffectiveVolume(0.6)
-    sound:Play()
+    playSound(SOUNDS.DEFEAT, 0.6, 1.0)
 end
 
 -- Random happy meow (ambient)
 function SoundManager.playHappyMeow()
-    local sound = getSound(SOUNDS.MEOW_HAPPY)
-    sound.Volume = getEffectiveVolume(0.3)
-    sound:Play()
+    playSound(SOUNDS.MEOW_HAPPY, 0.3, 1.0)
 end
 
 -- Purr when hovering over piece (dedicated instance, not cached)
@@ -180,35 +164,21 @@ end
 
 -- Play draw/stalemate sound (neutral outcome)
 function SoundManager.playDrawSound()
-    local sound = getSound(SOUNDS.MEOW_CURIOUS)
-    sound.Volume = getEffectiveVolume(0.5)
-    sound.PlaybackSpeed = 0.9 -- Slightly lower, pensive
-    sound:Play()
+    playSound(SOUNDS.MEOW_CURIOUS, 0.5, 0.9)
 end
 
 -- Play pawn promotion celebration
 function SoundManager.playPromotionSound()
     task.spawn(function()
-        local triumph = getSound(SOUNDS.TRIUMPH)
-        triumph.Volume = getEffectiveVolume(0.5)
-        triumph.PlaybackSpeed = 1.3 -- Quick, excited
-        triumph:Play()
-
+        playSound(SOUNDS.TRIUMPH, 0.5, 1.3)
         task.wait(0.3)
-
-        local meow = getSound(SOUNDS.MEOW_HAPPY)
-        meow.Volume = getEffectiveVolume(0.4)
-        meow.PlaybackSpeed = 1.2
-        meow:Play()
+        playSound(SOUNDS.MEOW_HAPPY, 0.4, 1.2)
     end)
 end
 
 -- Play low-time warning tick (clock running low)
 function SoundManager.playLowTimeWarning()
-    local sound = getSound(SOUNDS.CLICK_SOFT)
-    sound.Volume = getEffectiveVolume(0.6)
-    sound.PlaybackSpeed = 2.0 -- Fast, urgent tick
-    sound:Play()
+    playSound(SOUNDS.CLICK_SOFT, 0.6, 2.0)
 end
 
 return SoundManager

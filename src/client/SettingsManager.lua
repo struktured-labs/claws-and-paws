@@ -135,6 +135,7 @@ end
 function SettingsManager.createSettingsUI(onClose)
     local Players = game:GetService("Players")
     local LocalPlayer = Players.LocalPlayer
+    local UserInputService = game:GetService("UserInputService")
 
     local screenGui = Instance.new("ScreenGui")
     screenGui.Name = "SettingsMenu"
@@ -150,14 +151,20 @@ function SettingsManager.createSettingsUI(onClose)
     overlay.BorderSizePixel = 0
     overlay.Parent = screenGui
 
-    -- Settings panel
+    -- Settings panel - responsive sizing
     local panel = Instance.new("Frame")
     panel.Name = "SettingsPanel"
-    panel.Size = UDim2.new(0, 600, 0, 700)
-    panel.Position = UDim2.new(0.5, -300, 0.5, -350)
+    panel.Size = UDim2.new(0.9, 0, 0.9, 0)
+    panel.AnchorPoint = Vector2.new(0.5, 0.5)
+    panel.Position = UDim2.new(0.5, 0, 0.5, 0)
     panel.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
     panel.BorderSizePixel = 0
     panel.Parent = overlay
+
+    local panelConstraint = Instance.new("UISizeConstraint")
+    panelConstraint.MaxSize = Vector2.new(600, 700)
+    panelConstraint.MinSize = Vector2.new(280, 400)
+    panelConstraint.Parent = panel
 
     -- Panel corner rounding
     local corner = Instance.new("UICorner")
@@ -167,12 +174,12 @@ function SettingsManager.createSettingsUI(onClose)
     -- Title
     local title = Instance.new("TextLabel")
     title.Name = "Title"
-    title.Size = UDim2.new(1, -40, 0, 50)
-    title.Position = UDim2.new(0, 20, 0, 20)
+    title.Size = UDim2.new(1, -40, 0, 40)
+    title.Position = UDim2.new(0, 20, 0, 10)
     title.BackgroundTransparency = 1
-    title.Text = "⚙️ Settings"
+    title.Text = "Settings"
     title.TextColor3 = Color3.fromRGB(255, 255, 255)
-    title.TextSize = 32
+    title.TextSize = 28
     title.Font = Enum.Font.FredokaOne
     title.TextXAlignment = Enum.TextXAlignment.Left
     title.Parent = panel
@@ -180,16 +187,16 @@ function SettingsManager.createSettingsUI(onClose)
     -- Scrolling frame for settings
     local scrollFrame = Instance.new("ScrollingFrame")
     scrollFrame.Name = "SettingsScroll"
-    scrollFrame.Size = UDim2.new(1, -40, 1, -140)
-    scrollFrame.Position = UDim2.new(0, 20, 0, 80)
+    scrollFrame.Size = UDim2.new(1, -30, 1, -110)
+    scrollFrame.Position = UDim2.new(0, 15, 0, 55)
     scrollFrame.BackgroundTransparency = 1
     scrollFrame.BorderSizePixel = 0
-    scrollFrame.ScrollBarThickness = 8
-    scrollFrame.CanvasSize = UDim2.new(0, 0, 0, 0) -- Will auto-size
+    scrollFrame.ScrollBarThickness = 6
+    scrollFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
     scrollFrame.Parent = panel
 
     local layout = Instance.new("UIListLayout")
-    layout.Padding = UDim.new(0, 15)
+    layout.Padding = UDim.new(0, 12)
     layout.SortOrder = Enum.SortOrder.LayoutOrder
     layout.Parent = scrollFrame
 
@@ -198,62 +205,62 @@ function SettingsManager.createSettingsUI(onClose)
         scrollFrame.CanvasSize = UDim2.new(0, 0, 0, layout.AbsoluteContentSize.Y + 20)
     end)
 
-    local yOffset = 0
-
     -- Helper: Create section header
     local function createSectionHeader(text, order)
         local header = Instance.new("TextLabel")
         header.Name = "Header_" .. text
-        header.Size = UDim2.new(1, 0, 0, 30)
+        header.Size = UDim2.new(1, 0, 0, 28)
         header.BackgroundTransparency = 1
         header.Text = text
         header.TextColor3 = Color3.fromRGB(255, 215, 0)
-        header.TextSize = 24
+        header.TextSize = 20
         header.Font = Enum.Font.FredokaOne
         header.TextXAlignment = Enum.TextXAlignment.Left
         header.LayoutOrder = order
         header.Parent = scrollFrame
     end
 
-    -- Helper: Create slider
+    -- Helper: Create slider (supports both mouse and touch)
     local function createSlider(labelText, settingKey, minVal, maxVal, order)
         local container = Instance.new("Frame")
         container.Name = "Slider_" .. settingKey
-        container.Size = UDim2.new(1, 0, 0, 60)
+        container.Size = UDim2.new(1, 0, 0, 55)
         container.BackgroundTransparency = 1
         container.LayoutOrder = order
         container.Parent = scrollFrame
 
         local label = Instance.new("TextLabel")
-        label.Size = UDim2.new(0.5, 0, 0, 30)
+        label.Size = UDim2.new(0.6, 0, 0, 25)
         label.BackgroundTransparency = 1
         label.Text = labelText
         label.TextColor3 = Color3.fromRGB(200, 200, 200)
-        label.TextSize = 18
+        label.TextSize = 16
         label.Font = Enum.Font.GothamMedium
         label.TextXAlignment = Enum.TextXAlignment.Left
         label.Parent = container
 
         local valueLabel = Instance.new("TextLabel")
-        valueLabel.Size = UDim2.new(0, 50, 0, 30)
-        valueLabel.Position = UDim2.new(0.5, 0, 0, 0)
+        valueLabel.Size = UDim2.new(0, 50, 0, 25)
+        valueLabel.Position = UDim2.new(1, -50, 0, 0)
         valueLabel.BackgroundTransparency = 1
         valueLabel.Text = tostring(math.floor(SettingsManager.get(settingKey) * 100)) .. "%"
         valueLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-        valueLabel.TextSize = 18
+        valueLabel.TextSize = 16
         valueLabel.Font = Enum.Font.GothamBold
         valueLabel.Parent = container
 
-        -- Slider background
-        local sliderBg = Instance.new("Frame")
-        sliderBg.Size = UDim2.new(1, 0, 0, 8)
-        sliderBg.Position = UDim2.new(0, 0, 0, 40)
+        -- Slider background (larger touch target)
+        local sliderBg = Instance.new("TextButton")
+        sliderBg.Size = UDim2.new(1, 0, 0, 24)
+        sliderBg.Position = UDim2.new(0, 0, 0, 30)
         sliderBg.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
         sliderBg.BorderSizePixel = 0
+        sliderBg.Text = ""
+        sliderBg.AutoButtonColor = false
         sliderBg.Parent = container
 
         local sliderCorner = Instance.new("UICorner")
-        sliderCorner.CornerRadius = UDim.new(0, 4)
+        sliderCorner.CornerRadius = UDim.new(0, 12)
         sliderCorner.Parent = sliderBg
 
         -- Slider fill
@@ -264,66 +271,77 @@ function SettingsManager.createSettingsUI(onClose)
         sliderFill.Parent = sliderBg
 
         local fillCorner = Instance.new("UICorner")
-        fillCorner.CornerRadius = UDim.new(0, 4)
+        fillCorner.CornerRadius = UDim.new(0, 12)
         fillCorner.Parent = sliderFill
 
-        -- Draggable button
-        local button = Instance.new("TextButton")
-        button.Size = UDim2.new(0, 20, 0, 20)
-        button.Position = UDim2.new(SettingsManager.get(settingKey), -10, 0.5, -10)
-        button.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-        button.BorderSizePixel = 0
-        button.Text = ""
-        button.Parent = sliderBg
+        -- Draggable thumb
+        local thumb = Instance.new("Frame")
+        thumb.Size = UDim2.new(0, 22, 0, 22)
+        thumb.Position = UDim2.new(SettingsManager.get(settingKey), -11, 0.5, -11)
+        thumb.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+        thumb.BorderSizePixel = 0
+        thumb.Parent = sliderBg
 
-        local btnCorner = Instance.new("UICorner")
-        btnCorner.CornerRadius = UDim.new(1, 0)
-        btnCorner.Parent = button
+        local thumbCorner = Instance.new("UICorner")
+        thumbCorner.CornerRadius = UDim.new(1, 0)
+        thumbCorner.Parent = thumb
 
-        -- Dragging logic
+        -- Update slider position and setting
+        local function updateSlider(screenX)
+            local relativePos = (screenX - sliderBg.AbsolutePosition.X) / sliderBg.AbsoluteSize.X
+            relativePos = math.clamp(relativePos, 0, 1)
+
+            sliderFill.Size = UDim2.new(relativePos, 0, 1, 0)
+            thumb.Position = UDim2.new(relativePos, -11, 0.5, -11)
+            valueLabel.Text = tostring(math.floor(relativePos * 100)) .. "%"
+
+            SettingsManager.set(settingKey, relativePos)
+
+            if settingKey:find("Volume") then
+                LocalPlayer:SetAttribute(settingKey, relativePos)
+                local success, MusicMgr = pcall(function()
+                    return require(script.Parent.MusicManager)
+                end)
+                if success and MusicMgr then
+                    MusicMgr.updateVolumeFromSettings(
+                        SettingsManager.get("masterVolume"),
+                        SettingsManager.get("musicVolume")
+                    )
+                end
+            end
+        end
+
+        -- Mouse dragging
         local dragging = false
-        button.MouseButton1Down:Connect(function()
+
+        sliderBg.MouseButton1Down:Connect(function()
             dragging = true
+            local mousePos = UserInputService:GetMouseLocation()
+            updateSlider(mousePos.X)
         end)
 
-        local UserInputService = game:GetService("UserInputService")
         UserInputService.InputEnded:Connect(function(input)
-            if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            if input.UserInputType == Enum.UserInputType.MouseButton1
+                or input.UserInputType == Enum.UserInputType.Touch then
                 dragging = false
             end
         end)
 
         UserInputService.InputChanged:Connect(function(input)
-            if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
-                local mousePos = UserInputService:GetMouseLocation()
-                local relativePos = (mousePos.X - sliderBg.AbsolutePosition.X) / sliderBg.AbsoluteSize.X
-                relativePos = math.clamp(relativePos, 0, 1)
-
-                -- Update UI
-                sliderFill.Size = UDim2.new(relativePos, 0, 1, 0)
-                button.Position = UDim2.new(relativePos, -10, 0.5, -10)
-                valueLabel.Text = tostring(math.floor(relativePos * 100)) .. "%"
-
-                -- Update setting
-                SettingsManager.set(settingKey, relativePos)
-
-                -- Apply audio settings immediately via player attributes
-                if settingKey:find("Volume") then
-                    local Players = game:GetService("Players")
-                    local LocalPlayer = Players.LocalPlayer
-                    LocalPlayer:SetAttribute(settingKey, relativePos)
-
-                    -- Update MusicManager directly
-                    local success, MusicMgr = pcall(function()
-                        return require(script.Parent.MusicManager)
-                    end)
-                    if success and MusicMgr then
-                        MusicMgr.updateVolumeFromSettings(
-                            SettingsManager.get("masterVolume"),
-                            SettingsManager.get("musicVolume")
-                        )
-                    end
+            if dragging then
+                if input.UserInputType == Enum.UserInputType.MouseMovement then
+                    updateSlider(input.Position.X)
+                elseif input.UserInputType == Enum.UserInputType.Touch then
+                    updateSlider(input.Position.X)
                 end
+            end
+        end)
+
+        -- Touch support: start drag on touch
+        sliderBg.InputBegan:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.Touch then
+                dragging = true
+                updateSlider(input.Position.X)
             end
         end)
     end
@@ -332,14 +350,14 @@ function SettingsManager.createSettingsUI(onClose)
     local function createThemeSelector(order)
         local container = Instance.new("Frame")
         container.Name = "ThemeSelector"
-        container.Size = UDim2.new(1, 0, 0, 400) -- Space for all theme buttons
+        container.Size = UDim2.new(1, 0, 0, 400)
         container.BackgroundTransparency = 1
         container.LayoutOrder = order
         container.Parent = scrollFrame
 
         local gridLayout = Instance.new("UIGridLayout")
-        gridLayout.CellSize = UDim2.new(0, 170, 0, 80)
-        gridLayout.CellPadding = UDim2.new(0, 10, 0, 10)
+        gridLayout.CellSize = UDim2.new(0.48, 0, 0, 75)
+        gridLayout.CellPadding = UDim2.new(0.02, 0, 0, 8)
         gridLayout.SortOrder = Enum.SortOrder.LayoutOrder
         gridLayout.Parent = container
 
@@ -353,14 +371,14 @@ function SettingsManager.createSettingsUI(onClose)
             themeBtn.LayoutOrder = themeOrder
             themeBtn.Parent = container
 
-            local corner = Instance.new("UICorner")
-            corner.CornerRadius = UDim.new(0, 8)
-            corner.Parent = themeBtn
+            local btnCorner = Instance.new("UICorner")
+            btnCorner.CornerRadius = UDim.new(0, 8)
+            btnCorner.Parent = themeBtn
 
             -- Color preview squares
             local previewFrame = Instance.new("Frame")
-            previewFrame.Size = UDim2.new(1, -10, 0, 30)
-            previewFrame.Position = UDim2.new(0, 5, 0, 5)
+            previewFrame.Size = UDim2.new(1, -8, 0, 28)
+            previewFrame.Position = UDim2.new(0, 4, 0, 4)
             previewFrame.BackgroundTransparency = 1
             previewFrame.Parent = themeBtn
 
@@ -387,47 +405,36 @@ function SettingsManager.createSettingsUI(onClose)
 
             -- Theme name
             local nameLabel = Instance.new("TextLabel")
-            nameLabel.Size = UDim2.new(1, -10, 0, 20)
-            nameLabel.Position = UDim2.new(0, 5, 0, 40)
+            nameLabel.Size = UDim2.new(1, -8, 0, 18)
+            nameLabel.Position = UDim2.new(0, 4, 0, 36)
             nameLabel.BackgroundTransparency = 1
             nameLabel.Text = themeName
             nameLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-            nameLabel.TextSize = 14
+            nameLabel.TextSize = 12
+            nameLabel.TextScaled = true
             nameLabel.Font = Enum.Font.GothamBold
             nameLabel.Parent = themeBtn
 
             -- Selection indicator
-            local selected = Instance.new("Frame")
-            selected.Name = "SelectedBorder"
-            selected.Size = UDim2.new(1, 4, 1, 4)
-            selected.Position = UDim2.new(0, -2, 0, -2)
-            selected.BackgroundTransparency = 1
-            selected.BorderSizePixel = 3
-            selected.BorderColor3 = Color3.fromRGB(255, 215, 0)
-            selected.Visible = (SettingsManager.get("colorTheme") == themeName)
+            local selected = Instance.new("UIStroke")
+            selected.Name = "SelectedStroke"
+            selected.Thickness = 2
+            selected.Color = Color3.fromRGB(255, 215, 0)
+            selected.Enabled = (SettingsManager.get("colorTheme") == themeName)
             selected.Parent = themeBtn
-
-            local selCorner = Instance.new("UICorner")
-            selCorner.CornerRadius = UDim.new(0, 10)
-            selCorner.Parent = selected
 
             -- Click handler
             themeBtn.MouseButton1Click:Connect(function()
                 SettingsManager.set("colorTheme", themeName)
 
-                -- Update all selection borders
+                -- Update all selection indicators
                 for _, btn in ipairs(container:GetChildren()) do
                     if btn:IsA("TextButton") then
-                        local border = btn:FindFirstChild("SelectedBorder")
-                        if border then
-                            border.Visible = (btn.Name == "Theme_" .. themeName)
+                        local stroke = btn:FindFirstChild("SelectedStroke")
+                        if stroke then
+                            stroke.Enabled = (btn.Name == "Theme_" .. themeName)
                         end
                     end
-                end
-
-                -- Notify that theme changed (will be handled by caller)
-                if onClose then
-                    -- Theme will be applied when settings close
                 end
             end)
 
@@ -444,7 +451,7 @@ function SettingsManager.createSettingsUI(onClose)
     local function createToggle(labelText, settingKey, order)
         local container = Instance.new("Frame")
         container.Name = "Toggle_" .. settingKey
-        container.Size = UDim2.new(1, 0, 0, 40)
+        container.Size = UDim2.new(1, 0, 0, 36)
         container.BackgroundTransparency = 1
         container.LayoutOrder = order
         container.Parent = scrollFrame
@@ -454,24 +461,24 @@ function SettingsManager.createSettingsUI(onClose)
         label.BackgroundTransparency = 1
         label.Text = labelText
         label.TextColor3 = Color3.fromRGB(200, 200, 200)
-        label.TextSize = 18
+        label.TextSize = 16
         label.Font = Enum.Font.GothamMedium
         label.TextXAlignment = Enum.TextXAlignment.Left
         label.Parent = container
 
         local toggleBtn = Instance.new("TextButton")
-        toggleBtn.Size = UDim2.new(0, 60, 0, 30)
-        toggleBtn.Position = UDim2.new(1, -60, 0.5, -15)
+        toggleBtn.Size = UDim2.new(0, 56, 0, 28)
+        toggleBtn.Position = UDim2.new(1, -56, 0.5, -14)
         toggleBtn.BackgroundColor3 = SettingsManager.get(settingKey) and Color3.fromRGB(100, 200, 100) or Color3.fromRGB(100, 100, 100)
         toggleBtn.BorderSizePixel = 0
         toggleBtn.Text = SettingsManager.get(settingKey) and "ON" or "OFF"
         toggleBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-        toggleBtn.TextSize = 14
+        toggleBtn.TextSize = 13
         toggleBtn.Font = Enum.Font.GothamBold
         toggleBtn.Parent = container
 
         local btnCorner = Instance.new("UICorner")
-        btnCorner.CornerRadius = UDim.new(0, 15)
+        btnCorner.CornerRadius = UDim.new(0, 14)
         btnCorner.Parent = toggleBtn
 
         toggleBtn.MouseButton1Click:Connect(function()
@@ -486,14 +493,14 @@ function SettingsManager.createSettingsUI(onClose)
     local orderCounter = 1
 
     -- VISUAL SETTINGS
-    createSectionHeader("🎨 Board Colors", orderCounter)
+    createSectionHeader("Board Colors", orderCounter)
     orderCounter = orderCounter + 1
 
     createThemeSelector(orderCounter)
     orderCounter = orderCounter + 1
 
     -- AUDIO SETTINGS
-    createSectionHeader("🔊 Audio", orderCounter)
+    createSectionHeader("Audio", orderCounter)
     orderCounter = orderCounter + 1
 
     createSlider("Master Volume", "masterVolume", 0, 1, orderCounter)
@@ -506,7 +513,7 @@ function SettingsManager.createSettingsUI(onClose)
     orderCounter = orderCounter + 1
 
     -- GAMEPLAY SETTINGS
-    createSectionHeader("🎮 Gameplay", orderCounter)
+    createSectionHeader("Gameplay", orderCounter)
     orderCounter = orderCounter + 1
 
     createToggle("Show Coordinates", "showCoordinates", orderCounter)
@@ -520,13 +527,14 @@ function SettingsManager.createSettingsUI(onClose)
 
     -- Close button
     local closeBtn = Instance.new("TextButton")
-    closeBtn.Size = UDim2.new(0, 200, 0, 50)
-    closeBtn.Position = UDim2.new(0.5, -100, 1, -70)
+    closeBtn.Size = UDim2.new(0.6, 0, 0, 44)
+    closeBtn.AnchorPoint = Vector2.new(0.5, 1)
+    closeBtn.Position = UDim2.new(0.5, 0, 1, -10)
     closeBtn.BackgroundColor3 = Color3.fromRGB(100, 100, 255)
     closeBtn.BorderSizePixel = 0
     closeBtn.Text = "Close"
     closeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-    closeBtn.TextSize = 24
+    closeBtn.TextSize = 22
     closeBtn.Font = Enum.Font.FredokaOne
     closeBtn.Parent = panel
 

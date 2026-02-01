@@ -208,11 +208,11 @@ function GameSession:broadcastState()
 
     if Constants.DEBUG then print(string.format("🐱 [SERVER] Broadcasting state with %d pieces (flat array)", pieceCount)) end
 
-    if self.player1 then
-        GetGameStateFunction:InvokeClient(self.player1, state)
+    if self.player1 and self.player1.Parent then
+        pcall(GetGameStateFunction.InvokeClient, GetGameStateFunction, self.player1, state)
     end
-    if self.player2 and not self.isAI and not self.isAIvsAI then
-        GetGameStateFunction:InvokeClient(self.player2, state)
+    if self.player2 and self.player2.Parent and not self.isAI and not self.isAIvsAI then
+        pcall(GetGameStateFunction.InvokeClient, GetGameStateFunction, self.player2, state)
     end
 
     -- Schedule cleanup if game is over
@@ -271,7 +271,8 @@ function GameSession:startAIvsAILoop()
                 if aiMove then
                     local success = self.engine:makeMove(
                         aiMove.from.row, aiMove.from.col,
-                        aiMove.to.row, aiMove.to.col
+                        aiMove.to.row, aiMove.to.col,
+                        Constants.PieceType.QUEEN
                     )
                     if success then
                         if Constants.DEBUG then print(string.format("🐱 [SERVER] AI vs AI: %s moved [%d,%d] → [%d,%d]",
@@ -381,7 +382,8 @@ local function handleMove(player, gameId, fromRow, fromCol, toRow, toCol, promot
                     if aiMove then
                         session.engine:makeMove(
                             aiMove.from.row, aiMove.from.col,
-                            aiMove.to.row, aiMove.to.col
+                            aiMove.to.row, aiMove.to.col,
+                            Constants.PieceType.QUEEN
                         )
                         session:broadcastState()
                     end

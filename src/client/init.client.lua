@@ -3,80 +3,41 @@
     Handles UI, input, and local game rendering
 ]]
 
-if Constants.DEBUG then print("🐱 [DEBUG] Client script starting...") end
-
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
 
-if Constants.DEBUG then print("🐱 [DEBUG] Requiring Shared...") end
 local Shared = require(ReplicatedStorage.Shared)
-if Constants.DEBUG then print("🐱 [DEBUG] Shared loaded!") end
 local Constants = Shared.Constants
-if Constants.DEBUG then print("🐱 [DEBUG] Constants loaded!") end
-if Constants.DEBUG then print("🐱 [DEBUG] Requiring Logger...") end
+if Constants.DEBUG then print("🐱 [DEBUG] Client script starting") end
 local Logger = require(script.Logger)
-if Constants.DEBUG then print("🐱 [DEBUG] Requiring MusicManager...") end
 local MusicManager = require(script.MusicManager)
-if Constants.DEBUG then print("🐱 [DEBUG] Requiring ParticleEffects...") end
 local ParticleEffects = require(script.ParticleEffects)
-if Constants.DEBUG then print("🐱 [DEBUG] Requiring SoundManager...") end
 local SoundManager = require(script.SoundManager)
-if Constants.DEBUG then print("🐱 [DEBUG] Requiring BattleAnimations...") end
 local BattleAnimations = require(script.BattleAnimations)
-if Constants.DEBUG then print("🐱 [DEBUG] Requiring AssetLoader...") end
 local AssetLoader = require(script.AssetLoader)
-if Constants.DEBUG then print("🐱 [DEBUG] Requiring TutorialManager...") end
 local TutorialManager = require(script.TutorialManager)
-if Constants.DEBUG then print("🐱 [DEBUG] Requiring CameraController...") end
 local CameraController = require(script.CameraController)
-if Constants.DEBUG then print("🐱 [DEBUG] Requiring SettingsManager...") end
 local SettingsManager = require(script.SettingsManager)
-if Constants.DEBUG then print("🐱 [DEBUG] Requiring CampaignUI...") end
 local CampaignUI = require(script.CampaignUI)
-if Constants.DEBUG then print("🐱 [DEBUG] All modules loaded!") end
+if Constants.DEBUG then print("🐱 [DEBUG] All modules loaded") end
 
--- Initialize logger first
-if Constants.DEBUG then print("🐱 [DEBUG] Calling Logger.init()...") end
 Logger.init()
-if Constants.DEBUG then print("🐱 [DEBUG] Logger initialized!") end
-
--- Initialize settings
-if Constants.DEBUG then print("🐱 [DEBUG] Initializing SettingsManager...") end
 SettingsManager.init()
-if Constants.DEBUG then print("🐱 [DEBUG] Settings initialized!") end
 
 local LocalPlayer = Players.LocalPlayer
 
--- Wait for remotes (no timeout - wait forever for server to create them)
-if Constants.DEBUG then print("🐱 [DEBUG] Waiting for Remotes folder...") end
-local Remotes = ReplicatedStorage:WaitForChild("Remotes")  -- Wait indefinitely
-if Constants.DEBUG then print("🐱 [DEBUG] Remotes folder found!") end
-
--- Debug: List all children in Remotes folder
-if Constants.DEBUG then print("🐱 [DEBUG] Children in Remotes folder:") end
-for _, child in ipairs(Remotes:GetChildren()) do
-	if Constants.DEBUG then print("🐱 [DEBUG]   - " .. child.Name .. " (" .. child.ClassName .. ")") end
-end
-if Constants.DEBUG then print("🐱 [DEBUG] Total children: " .. #Remotes:GetChildren()) end
-
-if Constants.DEBUG then print("🐱 [DEBUG] Got Remotes! Waiting for events...") end
+-- Wait for remotes
+local Remotes = ReplicatedStorage:WaitForChild("Remotes")
 local RequestMatchEvent = Remotes:WaitForChild("RequestMatch")
-if Constants.DEBUG then print("🐱 [DEBUG] Got RequestMatch") end
 local CancelMatchEvent = Remotes:WaitForChild("CancelMatch")
-if Constants.DEBUG then print("🐱 [DEBUG] Got CancelMatch") end
 local MakeMoveEvent = Remotes:WaitForChild("MakeMove")
-if Constants.DEBUG then print("🐱 [DEBUG] Got MakeMove") end
 local ResignEvent = Remotes:WaitForChild("Resign")
-if Constants.DEBUG then print("🐱 [DEBUG] Got Resign") end
 local SendGestureEvent = Remotes:WaitForChild("SendGesture")
-if Constants.DEBUG then print("🐱 [DEBUG] Got SendGesture") end
 local RequestAIGameEvent = Remotes:WaitForChild("RequestAIGame")
-if Constants.DEBUG then print("🐱 [DEBUG] Got RequestAIGame") end
 local RequestAIvsAIGameEvent = Remotes:WaitForChild("RequestAIvsAIGame")
-if Constants.DEBUG then print("🐱 [DEBUG] Got RequestAIvsAIGame") end
 local GetGameStateFunction = Remotes:WaitForChild("GetGameState")
-if Constants.DEBUG then print("🐱 [DEBUG] Got GetGameState - all remotes loaded!") end
+if Constants.DEBUG then print("🐱 [DEBUG] All remotes loaded") end
 
 -- Client state
 local ClientState = {
@@ -481,6 +442,18 @@ local function createBoard()
         label.Parent = billboard
     end
 
+    -- Apply showCoordinates setting
+    if SettingsManager.get("showCoordinates") == false then
+        for _, child in ipairs(coordFolder:GetChildren()) do
+            child.Transparency = 1
+        end
+        for _, child in ipairs(boardFolder:GetChildren()) do
+            if child:IsA("BillboardGui") then
+                child.Enabled = false
+            end
+        end
+    end
+
     return boardFolder, squares
 end
 
@@ -684,12 +657,14 @@ local function updateBoardVisuals(boardFolder, squares, gameState, skipAnimation
         ParticleEffects.createSparkles(sq)
     end
 
-    -- Highlight valid moves with glow
-    for _, move in ipairs(ClientState.validMoves) do
-        local sq = squares[move.row][move.col]
-        if sq then
-            sq.Color = BoardConfig.validMoveColor
-            ParticleEffects.highlightSquare(sq, Color3.fromRGB(144, 238, 144))
+    -- Highlight valid moves with glow (respects showValidMoves setting)
+    if SettingsManager.get("showValidMoves") ~= false then
+        for _, move in ipairs(ClientState.validMoves) do
+            local sq = squares[move.row][move.col]
+            if sq then
+                sq.Color = BoardConfig.validMoveColor
+                ParticleEffects.highlightSquare(sq, Color3.fromRGB(144, 238, 144))
+            end
         end
     end
 end
@@ -888,12 +863,14 @@ local function onSquareClicked(row, col, boardFolder, squares)
         ParticleEffects.createSparkles(sq)
     end
 
-    -- Highlight valid moves
-    for _, move in ipairs(ClientState.validMoves) do
-        if move and move.row and move.col then
-            local sq = squares[move.row][move.col]
-            sq.Color = BoardConfig.validMoveColor
-            ParticleEffects.highlightSquare(sq)
+    -- Highlight valid moves (respects showValidMoves setting)
+    if SettingsManager.get("showValidMoves") ~= false then
+        for _, move in ipairs(ClientState.validMoves) do
+            if move and move.row and move.col then
+                local sq = squares[move.row][move.col]
+                sq.Color = BoardConfig.validMoveColor
+                ParticleEffects.highlightSquare(sq)
+            end
         end
     end
 end
@@ -1097,17 +1074,18 @@ local function createMainMenu()
 
     local frame = Instance.new("Frame")
     frame.Name = "MenuFrame"
-    frame.Size = UDim2.new(0.85, 0, 0, 610)
+    frame.Size = UDim2.new(0.85, 0, 0.85, 0)
     frame.AnchorPoint = Vector2.new(0.5, 0.5)
     frame.Position = UDim2.new(0.5, 0, 0.5, 0)
     frame.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
     frame.BorderSizePixel = 0
+    frame.ClipsDescendants = true
     frame.Parent = screenGui
 
-    -- Constrain to reasonable size on desktop
+    -- Constrain to reasonable size on desktop, allow smaller on mobile
     local menuSizeConstraint = Instance.new("UISizeConstraint")
-    menuSizeConstraint.MaxSize = Vector2.new(320, 610)
-    menuSizeConstraint.MinSize = Vector2.new(250, 500)
+    menuSizeConstraint.MaxSize = Vector2.new(320, 650)
+    menuSizeConstraint.MinSize = Vector2.new(220, 350)
     menuSizeConstraint.Parent = frame
 
     local corner = Instance.new("UICorner")
@@ -1116,26 +1094,70 @@ local function createMainMenu()
 
     local title = Instance.new("TextLabel")
     title.Name = "Title"
-    title.Size = UDim2.new(1, 0, 0, 60)
+    title.Size = UDim2.new(1, 0, 0, 50)
     title.BackgroundTransparency = 1
-    title.Text = "🐾 Claws & Paws"
+    title.Text = "Claws & Paws"
     title.TextColor3 = Color3.fromRGB(255, 200, 100)
     title.Font = Enum.Font.FredokaOne
-    title.TextSize = 36
+    title.TextSize = 32
     title.Parent = frame
 
     local subtitle = Instance.new("TextLabel")
     subtitle.Name = "Subtitle"
-    subtitle.Size = UDim2.new(1, 0, 0, 30)
-    subtitle.Position = UDim2.new(0, 0, 0, 55)
+    subtitle.Size = UDim2.new(1, 0, 0, 22)
+    subtitle.Position = UDim2.new(0, 0, 0, 46)
     subtitle.BackgroundTransparency = 1
-    subtitle.Text = "Cat Chess Battle! 🐱♟️"
+    subtitle.Text = "Cat Chess Battle!"
     subtitle.TextColor3 = Color3.fromRGB(200, 200, 200)
     subtitle.Font = Enum.Font.Gotham
-    subtitle.TextSize = 16
+    subtitle.TextSize = 14
     subtitle.Parent = frame
 
-    local buttonY = 100
+    -- Scrollable button area
+    local menuScroll = Instance.new("ScrollingFrame")
+    menuScroll.Name = "MenuScroll"
+    menuScroll.Size = UDim2.new(1, -20, 1, -78)
+    menuScroll.Position = UDim2.new(0, 10, 0, 72)
+    menuScroll.BackgroundTransparency = 1
+    menuScroll.BorderSizePixel = 0
+    menuScroll.ScrollBarThickness = 4
+    menuScroll.CanvasSize = UDim2.new(0, 0, 0, 0)
+    menuScroll.Parent = frame
+
+    local menuLayout = Instance.new("UIListLayout")
+    menuLayout.Padding = UDim.new(0, 8)
+    menuLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+    menuLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    menuLayout.Parent = menuScroll
+
+    menuLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+        menuScroll.CanvasSize = UDim2.new(0, 0, 0, menuLayout.AbsoluteContentSize.Y + 10)
+    end)
+
+    -- Helper to create a menu button
+    local menuOrder = 1
+    local function makeMenuButton(text, color, callback)
+        local button = Instance.new("TextButton")
+        button.Size = UDim2.new(0.95, 0, 0, 38)
+        button.BackgroundColor3 = color
+        button.BorderSizePixel = 0
+        button.Text = text
+        button.TextColor3 = Color3.new(1, 1, 1)
+        button.Font = Enum.Font.GothamBold
+        button.TextSize = 16
+        button.LayoutOrder = menuOrder
+        button.Parent = menuScroll
+
+        local btnCorner = Instance.new("UICorner")
+        btnCorner.CornerRadius = UDim.new(0, 5)
+        btnCorner.Parent = button
+
+        button.MouseButton1Click:Connect(callback)
+        menuOrder = menuOrder + 1
+        return button
+    end
+
+    -- Game mode buttons
     local buttons = {
         {text = "Play vs AI (Easy)", mode = Constants.GameMode.AI_EASY},
         {text = "Play vs AI (Medium)", mode = Constants.GameMode.AI_MEDIUM},
@@ -1145,66 +1167,25 @@ local function createMainMenu()
     }
 
     for _, btnData in ipairs(buttons) do
-        local button = Instance.new("TextButton")
-        button.Name = btnData.mode
-        button.Size = UDim2.new(0, 250, 0, 40)
-        button.Position = UDim2.new(0.5, -125, 0, buttonY)
-        button.BackgroundColor3 = Color3.fromRGB(80, 120, 200)
-        button.BorderSizePixel = 0
-        button.Text = btnData.text
-        button.TextColor3 = Color3.new(1, 1, 1)
-        button.Font = Enum.Font.GothamBold
-        button.TextSize = 18
-        button.Parent = frame
-
-        local btnCorner = Instance.new("UICorner")
-        btnCorner.CornerRadius = UDim.new(0, 5)
-        btnCorner.Parent = button
-
-        button.MouseButton1Click:Connect(function()
+        makeMenuButton(btnData.text, Color3.fromRGB(80, 120, 200), function()
             SoundManager.playSelectSound()
-            ClientState.currentBoss = nil -- Not a campaign game
+            ClientState.currentBoss = nil
             if btnData.mode:sub(1, 2) == "AI" then
                 RequestAIGameEvent:FireServer(btnData.mode)
             else
                 RequestMatchEvent:FireServer(btnData.mode)
             end
-            -- Switch music based on game mode
             MusicManager.playForGameMode(btnData.mode)
             frame.Visible = false
         end)
-
-        buttonY = buttonY + 50
     end
 
     -- Campaign button (special gold styling)
-    local campaignBtn = Instance.new("TextButton")
-    campaignBtn.Name = "CampaignButton"
-    campaignBtn.Size = UDim2.new(0, 250, 0, 40)
-    campaignBtn.Position = UDim2.new(0.5, -125, 0, buttonY)
-    campaignBtn.BackgroundColor3 = Color3.fromRGB(200, 150, 50)
-    campaignBtn.BorderSizePixel = 0
-    campaignBtn.Text = "Boss Gauntlet"
-    campaignBtn.TextColor3 = Color3.new(1, 1, 1)
-    campaignBtn.Font = Enum.Font.FredokaOne
-    campaignBtn.TextSize = 18
-    campaignBtn.Parent = frame
-
-    local campaignCorner = Instance.new("UICorner")
-    campaignCorner.CornerRadius = UDim.new(0, 5)
-    campaignCorner.Parent = campaignBtn
-
-    local campaignStroke = Instance.new("UIStroke")
-    campaignStroke.Color = Color3.fromRGB(255, 215, 0)
-    campaignStroke.Thickness = 2
-    campaignStroke.Parent = campaignBtn
-
-    campaignBtn.MouseButton1Click:Connect(function()
+    local campaignBtn = makeMenuButton("Boss Gauntlet", Color3.fromRGB(200, 150, 50), function()
         SoundManager.playSelectSound()
         frame.Visible = false
         CampaignUI.createCampaignMenu(
             function(boss)
-                -- Boss selected - map aiDifficulty to game mode
                 local modeMap = {
                     AI_EASY = Constants.GameMode.AI_EASY,
                     AI_MEDIUM = Constants.GameMode.AI_MEDIUM,
@@ -1213,89 +1194,36 @@ local function createMainMenu()
                 local gameMode = modeMap[boss.aiDifficulty] or Constants.GameMode.AI_MEDIUM
                 RequestAIGameEvent:FireServer(gameMode)
                 MusicManager.playForGameMode(gameMode)
-                -- Store boss info for victory/defeat messages
                 ClientState.currentBoss = boss
             end,
             function()
-                -- Back button pressed - show main menu again
                 frame.Visible = true
             end
         )
     end)
+    campaignBtn.Font = Enum.Font.FredokaOne
+    local campaignStroke = Instance.new("UIStroke")
+    campaignStroke.Color = Color3.fromRGB(255, 215, 0)
+    campaignStroke.Thickness = 2
+    campaignStroke.Parent = campaignBtn
 
-    buttonY = buttonY + 50
-
-    -- Watch AI vs AI button (special styling)
-    local aiVsAiBtn = Instance.new("TextButton")
-    aiVsAiBtn.Name = "AIvsAIButton"
-    aiVsAiBtn.Size = UDim2.new(0, 250, 0, 40)
-    aiVsAiBtn.Position = UDim2.new(0.5, -125, 0, buttonY)
-    aiVsAiBtn.BackgroundColor3 = Color3.fromRGB(180, 100, 180)  -- Purple for AI vs AI
-    aiVsAiBtn.BorderSizePixel = 0
-    aiVsAiBtn.Text = "🤖 Watch AI vs AI"
-    aiVsAiBtn.TextColor3 = Color3.new(1, 1, 1)
-    aiVsAiBtn.Font = Enum.Font.GothamBold
-    aiVsAiBtn.TextSize = 18
-    aiVsAiBtn.Parent = frame
-
-    local aiVsAiCorner = Instance.new("UICorner")
-    aiVsAiCorner.CornerRadius = UDim.new(0, 5)
-    aiVsAiCorner.Parent = aiVsAiBtn
-
-    -- Create the AI vs AI popup (hidden by default)
-    local aiVsAiPopup = createAIvsAIPopup(frame)
-
-    aiVsAiBtn.MouseButton1Click:Connect(function()
-        aiVsAiPopup.Visible = true
+    -- Watch AI vs AI button
+    makeMenuButton("Watch AI vs AI", Color3.fromRGB(180, 100, 180), function()
         SoundManager.playSelectSound()
+        local aiVsAiPopup = createAIvsAIPopup(frame)
+        aiVsAiPopup.Visible = true
     end)
 
-    buttonY = buttonY + 50
-
     -- Settings button
-    local settingsBtn = Instance.new("TextButton")
-    settingsBtn.Name = "SettingsButton"
-    settingsBtn.Size = UDim2.new(0, 250, 0, 40)
-    settingsBtn.Position = UDim2.new(0.5, -125, 0, buttonY + 10)
-    settingsBtn.BackgroundColor3 = Color3.fromRGB(100, 100, 100)
-    settingsBtn.BorderSizePixel = 0
-    settingsBtn.Text = "⚙️ Settings"
-    settingsBtn.TextColor3 = Color3.new(1, 1, 1)
-    settingsBtn.Font = Enum.Font.GothamBold
-    settingsBtn.TextSize = 18
-    settingsBtn.Parent = frame
-
-    local settingsBtnCorner = Instance.new("UICorner")
-    settingsBtnCorner.CornerRadius = UDim.new(0, 5)
-    settingsBtnCorner.Parent = settingsBtn
-
-    settingsBtn.MouseButton1Click:Connect(function()
+    makeMenuButton("Settings", Color3.fromRGB(100, 100, 100), function()
+        SoundManager.playSelectSound()
         SettingsManager.createSettingsUI(function()
-            -- Callback when settings close - reapply theme
             SettingsManager.applyToBoardConfig(BoardConfig)
-            -- Board colors will be updated when board is recreated or on next game
         end)
     end)
 
     -- How to Play button
-    buttonY = buttonY + 50
-    local helpBtn = Instance.new("TextButton")
-    helpBtn.Name = "HelpButton"
-    helpBtn.Size = UDim2.new(0, 250, 0, 40)
-    helpBtn.Position = UDim2.new(0.5, -125, 0, buttonY)
-    helpBtn.BackgroundColor3 = Color3.fromRGB(100, 100, 100)
-    helpBtn.BorderSizePixel = 0
-    helpBtn.Text = "? How to Play"
-    helpBtn.TextColor3 = Color3.new(1, 1, 1)
-    helpBtn.Font = Enum.Font.GothamBold
-    helpBtn.TextSize = 18
-    helpBtn.Parent = frame
-
-    local helpBtnCorner = Instance.new("UICorner")
-    helpBtnCorner.CornerRadius = UDim.new(0, 5)
-    helpBtnCorner.Parent = helpBtn
-
-    helpBtn.MouseButton1Click:Connect(function()
+    makeMenuButton("How to Play", Color3.fromRGB(100, 100, 100), function()
         SoundManager.playSelectSound()
         TutorialManager.createHelpOverlay()
     end)
@@ -1949,6 +1877,7 @@ local function createGameHUD()
             ClientState.playerColor = nil
             ClientState.isMyTurn = false
             ClientState.isAIvsAI = false
+            ClientState.currentBoss = nil
             ClientState.localTimeWhite = 600
             ClientState.localTimeBlack = 600
             ClientState.clockRunning = false
@@ -1999,6 +1928,10 @@ local function createGameHUD()
     inGameSettingsBtn.MouseButton1Click:Connect(function()
         SettingsManager.createSettingsUI(function()
             SettingsManager.applyToBoardConfig(BoardConfig)
+            -- Refresh board visuals immediately with new theme
+            if ClientState.gameState then
+                updateBoardVisuals(boardFolder, squares, ClientState.gameState, true)
+            end
         end)
     end)
 
@@ -2029,6 +1962,7 @@ local function createGameHUD()
         ClientState.playerColor = nil
         ClientState.isMyTurn = false
         ClientState.isAIvsAI = false
+        ClientState.currentBoss = nil
         -- Reset clock state
         ClientState.localTimeWhite = 600
         ClientState.localTimeBlack = 600

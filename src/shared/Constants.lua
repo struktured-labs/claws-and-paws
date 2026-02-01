@@ -91,6 +91,9 @@ Constants.TimeControl = {
     [Constants.GameMode.SPEED_5MIN] = 300,
     [Constants.GameMode.CASUAL] = 600,      -- 10 minutes
     [Constants.GameMode.RANKED] = 600,
+    [Constants.GameMode.AI_EASY] = 600,
+    [Constants.GameMode.AI_MEDIUM] = 600,
+    [Constants.GameMode.AI_HARD] = 600,
 }
 
 -- AI Difficulty (minimax depth)

@@ -24,8 +24,9 @@ local SETTINGS_KEYS = {
     "masterVolume",
     "musicVolume",
     "sfxVolume",
-    "boardTheme",
+    "colorTheme",
     "showCoordinates",
+    "showValidMoves",
     "showPieceLabels",
 }
 
@@ -34,8 +35,9 @@ local SETTINGS_DEFAULTS = {
     masterVolume = 0.7,
     musicVolume = 0.5,
     sfxVolume = 0.8,
-    boardTheme = "Forest Floor",
+    colorTheme = "Forest Floor",
     showCoordinates = true,
+    showValidMoves = true,
     showPieceLabels = true,
 }
 
