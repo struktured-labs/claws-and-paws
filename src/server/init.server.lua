@@ -191,6 +191,7 @@ function GameSession:broadcastState()
     state.whiteDifficulty = self.whiteDifficulty
     state.blackDifficulty = self.blackDifficulty
     state.lastMoveTime = self.lastMoveTime  -- Send for client-side interpolation
+    state.gameMode = self.gameMode  -- Send for rematch support
 
     -- Include check state so client can play warning sounds
     state.inCheck = {

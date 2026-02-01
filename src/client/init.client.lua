@@ -651,6 +651,27 @@ local function updateBoardVisuals(boardFolder, squares, gameState, skipAnimation
         end
     end
 
+    -- Highlight king square in red if in check
+    if gameState and gameState.inCheck then
+        for _, piece in ipairs(gameState.pieces or {}) do
+            if piece.type == Constants.PieceType.KING then
+                local isInCheck = gameState.inCheck[piece.color]
+                if isInCheck and squares[piece.row] and squares[piece.row][piece.col] then
+                    local sq = squares[piece.row][piece.col]
+                    sq.Color = BoardConfig.checkColor
+                    -- Add danger glow
+                    local dangerLight = Instance.new("SurfaceLight")
+                    dangerLight.Name = "CheckGlow"
+                    dangerLight.Color = Color3.fromRGB(255, 50, 0)
+                    dangerLight.Brightness = 3
+                    dangerLight.Range = 15
+                    dangerLight.Face = Enum.NormalId.Top
+                    dangerLight.Parent = sq
+                end
+            end
+        end
+    end
+
     -- Highlight selected square with sparkles!
     if ClientState.selectedSquare then
         local sq = squares[ClientState.selectedSquare.row][ClientState.selectedSquare.col]
@@ -1911,6 +1932,8 @@ local function createGameHUD()
             end)
         else
             -- Game is over or AI vs AI - go directly to menu
+            local ro = screenGui:FindFirstChild("ResultOverlay")
+            if ro then ro.Visible = false end
             ClientState.currentGameId = nil
             ClientState.gameState = nil
             ClientState.selectedSquare = nil
@@ -1924,8 +1947,6 @@ local function createGameHUD()
             ClientState.clockRunning = false
             MusicManager.playMenuMusic()
             screenGui.Enabled = false
-            local newGameButton = screenGui:FindFirstChild("NewGameButton")
-            if newGameButton then newGameButton.Visible = false end
             local mainMenu = LocalPlayer.PlayerGui:FindFirstChild("MainMenu")
             if mainMenu then mainMenu.Enabled = true end
         end
@@ -2019,26 +2040,115 @@ local function createGameHUD()
         historyScroll.CanvasPosition = Vector2.new(0, math.max(0, historyLayout.AbsoluteContentSize.Y - historyScroll.AbsoluteSize.Y))
     end)
 
-    -- New Game button (hidden until game ends)
-    local newGameBtn = Instance.new("TextButton")
-    newGameBtn.Name = "NewGameButton"
-    newGameBtn.Size = UDim2.new(0, 180, 0, 50)
-    newGameBtn.Position = UDim2.new(0.5, -90, 0.5, 50)
-    newGameBtn.BackgroundColor3 = Color3.fromRGB(80, 180, 80)
-    newGameBtn.Text = "🎮 New Game"
-    newGameBtn.TextColor3 = Color3.new(1, 1, 1)
-    newGameBtn.Font = Enum.Font.FredokaOne
-    newGameBtn.TextSize = 24
-    newGameBtn.Visible = false -- Hidden until game ends
-    newGameBtn.Parent = screenGui
+    -- Game-over result popup (hidden until game ends)
+    local resultOverlay = Instance.new("Frame")
+    resultOverlay.Name = "ResultOverlay"
+    resultOverlay.Size = UDim2.new(1, 0, 1, 0)
+    resultOverlay.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+    resultOverlay.BackgroundTransparency = 0.4
+    resultOverlay.BorderSizePixel = 0
+    resultOverlay.Visible = false
+    resultOverlay.ZIndex = 10
+    resultOverlay.Parent = screenGui
 
-    local newGameCorner = Instance.new("UICorner")
-    newGameCorner.CornerRadius = UDim.new(0, 10)
-    newGameCorner.Parent = newGameBtn
+    local resultPopup = Instance.new("Frame")
+    resultPopup.Name = "ResultPopup"
+    resultPopup.Size = UDim2.new(0.85, 0, 0, 260)
+    resultPopup.AnchorPoint = Vector2.new(0.5, 0.5)
+    resultPopup.Position = UDim2.new(0.5, 0, 0.5, 0)
+    resultPopup.BackgroundColor3 = Color3.fromRGB(35, 30, 50)
+    resultPopup.BorderSizePixel = 0
+    resultPopup.ZIndex = 11
+    resultPopup.Parent = resultOverlay
 
-    newGameBtn.MouseButton1Click:Connect(function()
+    local rpSizeConstraint = Instance.new("UISizeConstraint")
+    rpSizeConstraint.MaxSize = Vector2.new(360, 260)
+    rpSizeConstraint.MinSize = Vector2.new(260, 240)
+    rpSizeConstraint.Parent = resultPopup
+
+    Instance.new("UICorner", resultPopup).CornerRadius = UDim.new(0, 12)
+    local rpStroke = Instance.new("UIStroke")
+    rpStroke.Thickness = 2
+    rpStroke.Color = Color3.fromRGB(255, 200, 100)
+    rpStroke.Parent = resultPopup
+
+    local resultEmoji = Instance.new("TextLabel")
+    resultEmoji.Name = "ResultEmoji"
+    resultEmoji.Size = UDim2.new(1, 0, 0, 60)
+    resultEmoji.Position = UDim2.new(0, 0, 0, 10)
+    resultEmoji.BackgroundTransparency = 1
+    resultEmoji.Text = ""
+    resultEmoji.Font = Enum.Font.FredokaOne
+    resultEmoji.TextSize = 48
+    resultEmoji.ZIndex = 12
+    resultEmoji.Parent = resultPopup
+
+    local resultTitle = Instance.new("TextLabel")
+    resultTitle.Name = "ResultTitle"
+    resultTitle.Size = UDim2.new(1, -20, 0, 40)
+    resultTitle.AnchorPoint = Vector2.new(0.5, 0)
+    resultTitle.Position = UDim2.new(0.5, 0, 0, 70)
+    resultTitle.BackgroundTransparency = 1
+    resultTitle.Text = ""
+    resultTitle.Font = Enum.Font.FredokaOne
+    resultTitle.TextSize = 28
+    resultTitle.TextScaled = true
+    resultTitle.ZIndex = 12
+    resultTitle.Parent = resultPopup
+
+    local resultTitleConstraint = Instance.new("UITextSizeConstraint")
+    resultTitleConstraint.MaxTextSize = 28
+    resultTitleConstraint.Parent = resultTitle
+
+    local resultStats = Instance.new("TextLabel")
+    resultStats.Name = "ResultStats"
+    resultStats.Size = UDim2.new(1, -20, 0, 24)
+    resultStats.AnchorPoint = Vector2.new(0.5, 0)
+    resultStats.Position = UDim2.new(0.5, 0, 0, 112)
+    resultStats.BackgroundTransparency = 1
+    resultStats.Text = ""
+    resultStats.TextColor3 = Color3.fromRGB(180, 180, 190)
+    resultStats.Font = Enum.Font.GothamMedium
+    resultStats.TextSize = 14
+    resultStats.ZIndex = 12
+    resultStats.Parent = resultPopup
+
+    -- Rematch button (same mode)
+    local rematchBtn = Instance.new("TextButton")
+    rematchBtn.Name = "RematchButton"
+    rematchBtn.Size = UDim2.new(0.8, 0, 0, 42)
+    rematchBtn.AnchorPoint = Vector2.new(0.5, 0)
+    rematchBtn.Position = UDim2.new(0.5, 0, 0, 148)
+    rematchBtn.BackgroundColor3 = Color3.fromRGB(80, 180, 80)
+    rematchBtn.BorderSizePixel = 0
+    rematchBtn.Text = "Rematch"
+    rematchBtn.TextColor3 = Color3.new(1, 1, 1)
+    rematchBtn.Font = Enum.Font.FredokaOne
+    rematchBtn.TextSize = 20
+    rematchBtn.ZIndex = 12
+    rematchBtn.Parent = resultPopup
+    Instance.new("UICorner", rematchBtn).CornerRadius = UDim.new(0, 8)
+
+    -- Back to menu button
+    local backToMenuBtn = Instance.new("TextButton")
+    backToMenuBtn.Name = "BackToMenuButton"
+    backToMenuBtn.Size = UDim2.new(0.8, 0, 0, 34)
+    backToMenuBtn.AnchorPoint = Vector2.new(0.5, 0)
+    backToMenuBtn.Position = UDim2.new(0.5, 0, 0, 200)
+    backToMenuBtn.BackgroundColor3 = Color3.fromRGB(90, 90, 110)
+    backToMenuBtn.BorderSizePixel = 0
+    backToMenuBtn.Text = "Back to Menu"
+    backToMenuBtn.TextColor3 = Color3.new(1, 1, 1)
+    backToMenuBtn.Font = Enum.Font.GothamBold
+    backToMenuBtn.TextSize = 16
+    backToMenuBtn.ZIndex = 12
+    backToMenuBtn.Parent = resultPopup
+    Instance.new("UICorner", backToMenuBtn).CornerRadius = UDim.new(0, 8)
+
+    -- Helper to reset client state and return to menu
+    local function resetToMenu()
         SoundManager.playSelectSound()
-        -- Reset client state
+        resultOverlay.Visible = false
         ClientState.currentGameId = nil
         ClientState.gameState = nil
         ClientState.selectedSquare = nil
@@ -2047,32 +2157,79 @@ local function createGameHUD()
         ClientState.isMyTurn = false
         ClientState.isAIvsAI = false
         ClientState.currentBoss = nil
-        -- Reset clock state
         ClientState.localTimeWhite = 600
         ClientState.localTimeBlack = 600
         ClientState.clockRunning = false
 
         -- Clear move history
-        local historyScroll = screenGui:FindFirstChild("MoveHistory") and screenGui:FindFirstChild("MoveHistory"):FindFirstChild("HistoryScroll")
-        if historyScroll then
-            for _, child in ipairs(historyScroll:GetChildren()) do
+        local hScroll = screenGui:FindFirstChild("MoveHistory") and screenGui:FindFirstChild("MoveHistory"):FindFirstChild("HistoryScroll")
+        if hScroll then
+            for _, child in ipairs(hScroll:GetChildren()) do
                 if child:IsA("TextLabel") then child:Destroy() end
             end
         end
 
-        -- Switch back to menu music
         MusicManager.playMenuMusic()
-
-        -- Hide game HUD and show main menu
         screenGui.Enabled = false
-        newGameBtn.Visible = false
 
-        -- Show main menu
         local mainMenu = LocalPlayer.PlayerGui:FindFirstChild("MainMenu")
-        if mainMenu then
-            mainMenu.Enabled = true
+        if mainMenu then mainMenu.Enabled = true end
+    end
+
+    backToMenuBtn.MouseButton1Click:Connect(resetToMenu)
+
+    rematchBtn.MouseButton1Click:Connect(function()
+        SoundManager.playSelectSound()
+        resultOverlay.Visible = false
+
+        -- Remember the game mode and boss for rematch
+        local lastGameState = ClientState.gameState
+        local lastBoss = ClientState.currentBoss
+        local lastIsAIvsAI = ClientState.isAIvsAI
+
+        -- Reset state
+        ClientState.currentGameId = nil
+        ClientState.gameState = nil
+        ClientState.selectedSquare = nil
+        ClientState.validMoves = {}
+        ClientState.playerColor = nil
+        ClientState.isMyTurn = false
+        ClientState.localTimeWhite = 600
+        ClientState.localTimeBlack = 600
+        ClientState.clockRunning = false
+        ClientState.lastMoveCount = 0
+        ClientState.lastCheckWhite = false
+        ClientState.lastCheckBlack = false
+
+        -- Clear move history
+        local hScroll = screenGui:FindFirstChild("MoveHistory") and screenGui:FindFirstChild("MoveHistory"):FindFirstChild("HistoryScroll")
+        if hScroll then
+            for _, child in ipairs(hScroll:GetChildren()) do
+                if child:IsA("TextLabel") then child:Destroy() end
+            end
+        end
+
+        -- Re-request the same type of game
+        if lastIsAIvsAI and lastGameState then
+            local whiteMode = lastGameState.whiteDifficulty or Constants.GameMode.AI_MEDIUM
+            local blackMode = lastGameState.blackDifficulty or Constants.GameMode.AI_MEDIUM
+            ClientState.isAIvsAI = true
+            RequestAIvsAIGameEvent:FireServer(whiteMode, blackMode)
+        elseif lastGameState and lastGameState.gameMode then
+            ClientState.currentBoss = lastBoss
+            if lastGameState.gameMode:sub(1, 2) == "AI" then
+                RequestAIGameEvent:FireServer(lastGameState.gameMode)
+            else
+                RequestMatchEvent:FireServer(lastGameState.gameMode)
+            end
+            MusicManager.playForGameMode(lastGameState.gameMode)
+        else
+            -- Fallback: go to menu
+            resetToMenu()
         end
     end)
+
+    -- Legacy NewGameButton removed - replaced by result popup buttons
 
     -- Gesture menu (improved with cat-themed icons and labels)
     local gestureFrame = Instance.new("Frame")
@@ -2442,19 +2599,24 @@ local function initialize()
                 local won = false
                 local isDraw = false
                 local resultText = ""
+                local emoji = ""
 
                 if gameState.gameState == Constants.GameState.WHITE_WIN then
                     won = ClientState.playerColor == Constants.Color.WHITE
                     resultText = won and "YOU WIN!" or "You Lose..."
+                    emoji = won and "🎉" or "😿"
                 elseif gameState.gameState == Constants.GameState.BLACK_WIN then
                     won = ClientState.playerColor == Constants.Color.BLACK
                     resultText = won and "YOU WIN!" or "You Lose..."
+                    emoji = won and "🎉" or "😿"
                 elseif gameState.gameState == Constants.GameState.STALEMATE then
                     isDraw = true
-                    resultText = "Stalemate - Draw!"
+                    resultText = "Stalemate!"
+                    emoji = "😺"
                 elseif gameState.gameState == Constants.GameState.DRAW then
                     isDraw = true
                     resultText = "Draw!"
+                    emoji = "😺"
                 end
 
                 -- Campaign boss mode - show boss quotes
@@ -2462,7 +2624,6 @@ local function initialize()
                     local boss = ClientState.currentBoss
                     if won then
                         resultText = boss.victoryQuote or "YOU WIN!"
-                        -- Mark boss as defeated
                         LocalPlayer:SetAttribute("boss_" .. boss.id, true)
                     elseif not isDraw then
                         resultText = boss.defeatQuote or "You Lose..."
@@ -2476,30 +2637,62 @@ local function initialize()
                     elseif gameState.gameState == Constants.GameState.BLACK_WIN then
                         resultText = "Black AI Wins!"
                     end
+                    emoji = "🤖"
                     won = false
                 end
 
-                -- Add move count stats
                 local moveCount = gameState.moveHistory and #gameState.moveHistory or 0
-                local statsText = moveCount > 0 and (" (" .. moveCount .. " moves)") or ""
 
+                -- Update turn label briefly
+                turnLabel.Text = emoji .. " " .. resultText
+                turnLabel.TextColor3 = won and Color3.fromRGB(255, 215, 0)
+                    or isDraw and Color3.fromRGB(200, 200, 200)
+                    or Color3.fromRGB(200, 100, 100)
+
+                -- Play music
                 if isDraw then
-                    turnLabel.Text = "😺 " .. resultText .. statsText
-                    turnLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
                     MusicManager.playMenuMusic()
+                elseif not ClientState.isAIvsAI then
+                    if won then MusicManager.playVictoryMusic() else MusicManager.playDefeatMusic() end
                 else
-                    turnLabel.Text = (won and "🎉 " or "😿 ") .. resultText .. statsText
-                    turnLabel.TextColor3 = won and Color3.fromRGB(255, 215, 0) or Color3.fromRGB(200, 100, 100)
-                    if not ClientState.isAIvsAI then
-                        if won then MusicManager.playVictoryMusic() else MusicManager.playDefeatMusic() end
-                    else
-                        MusicManager.playMenuMusic()
-                    end
+                    MusicManager.playMenuMusic()
                 end
 
-                -- Show New Game button
-                local newGameBtn = gameHUD:FindFirstChild("NewGameButton")
-                if newGameBtn then newGameBtn.Visible = true end
+                -- Show the big result popup after a short delay for drama
+                task.delay(0.8, function()
+                    local ro = gameHUD:FindFirstChild("ResultOverlay")
+                    if not ro then return end
+
+                    local rp = ro:FindFirstChild("ResultPopup")
+                    if not rp then return end
+
+                    -- Set content
+                    local emojiLabel = rp:FindFirstChild("ResultEmoji")
+                    if emojiLabel then emojiLabel.Text = emoji end
+
+                    local titleLabel = rp:FindFirstChild("ResultTitle")
+                    if titleLabel then
+                        titleLabel.Text = resultText
+                        titleLabel.TextColor3 = won and Color3.fromRGB(255, 215, 0)
+                            or isDraw and Color3.fromRGB(200, 200, 200)
+                            or Color3.fromRGB(200, 100, 100)
+                    end
+
+                    local statsLabel = rp:FindFirstChild("ResultStats")
+                    if statsLabel then
+                        statsLabel.Text = moveCount > 0 and (moveCount .. " moves played") or ""
+                    end
+
+                    -- Set popup border color based on result
+                    local rpStroke = rp:FindFirstChildOfClass("UIStroke")
+                    if rpStroke then
+                        rpStroke.Color = won and Color3.fromRGB(255, 215, 0)
+                            or isDraw and Color3.fromRGB(150, 150, 160)
+                            or Color3.fromRGB(200, 100, 100)
+                    end
+
+                    ro.Visible = true
+                end)
 
                 -- Hide resign button
                 local resignBtnEnd = gameHUD:FindFirstChild("ResignButton")
