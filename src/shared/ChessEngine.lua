@@ -599,9 +599,11 @@ function ChessEngine:checkGameEnd()
             self.gameState = (opponent == Constants.Color.WHITE)
                 and Constants.GameState.BLACK_WIN
                 or Constants.GameState.WHITE_WIN
+            self.endReason = "checkmate"
         else
             -- Stalemate
             self.gameState = Constants.GameState.STALEMATE
+            self.endReason = "stalemate"
         end
         return
     end
@@ -609,6 +611,7 @@ function ChessEngine:checkGameEnd()
     -- 50-move rule (25 full moves = 50 half-moves on 6x6)
     if self.halfMoveClock >= 50 then
         self.gameState = Constants.GameState.DRAW
+        self.endReason = "50-move rule"
         return
     end
 
@@ -616,12 +619,14 @@ function ChessEngine:checkGameEnd()
     local hash = self:getPositionHash()
     if (self.positionHistory[hash] or 0) >= 3 then
         self.gameState = Constants.GameState.DRAW
+        self.endReason = "repetition"
         return
     end
 
     -- Insufficient material
     if self:hasInsufficientMaterial() then
         self.gameState = Constants.GameState.DRAW
+        self.endReason = "insufficient material"
     end
 end
 
@@ -689,6 +694,7 @@ function ChessEngine:serialize()
         pieces = pieces,  -- Flat array instead of 2D board
         currentTurn = self.currentTurn,
         gameState = self.gameState,
+        endReason = self.endReason,
         moveHistory = self.moveHistory,
         halfMoveClock = self.halfMoveClock,
         lastMove = lastMove,

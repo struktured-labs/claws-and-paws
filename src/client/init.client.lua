@@ -2579,6 +2579,12 @@ local function initialize()
         end
         gameHUD.Enabled = true
 
+        -- Hide result overlay if a new game started (safety for rematch)
+        if gameState.gameState == Constants.GameState.IN_PROGRESS then
+            local ro = gameHUD:FindFirstChild("ResultOverlay")
+            if ro then ro.Visible = false end
+        end
+
         -- Update color indicator
         local colorLabel = gameHUD:FindFirstChild("ColorLabel")
         if colorLabel then
@@ -2646,21 +2652,65 @@ local function initialize()
                 local resultText = ""
                 local emoji = ""
 
+                -- Map end reasons to kid-friendly descriptions
+                local endReason = gameState.endReason or ""
+                local reasonText = ""
+
                 if gameState.gameState == Constants.GameState.WHITE_WIN then
                     won = ClientState.playerColor == Constants.Color.WHITE
-                    resultText = won and "YOU WIN!" or "You Lose..."
+                    if endReason == "checkmate" then
+                        resultText = won and "CHECKMATE!" or "Checkmate..."
+                        reasonText = won and "You trapped their King!" or "Your King got trapped!"
+                    elseif endReason == "timeout" then
+                        resultText = won and "YOU WIN!" or "Time's Up!"
+                        reasonText = won and "Opponent ran out of time" or "You ran out of time"
+                    elseif endReason == "resignation" then
+                        resultText = won and "YOU WIN!" or "You Resigned"
+                        reasonText = won and "Opponent gave up" or "You surrendered"
+                    elseif endReason == "disconnection" then
+                        resultText = won and "YOU WIN!" or "Disconnected"
+                        reasonText = won and "Opponent left the game" or "Connection lost"
+                    else
+                        resultText = won and "YOU WIN!" or "You Lose..."
+                    end
                     emoji = won and "🎉" or "😿"
                 elseif gameState.gameState == Constants.GameState.BLACK_WIN then
                     won = ClientState.playerColor == Constants.Color.BLACK
-                    resultText = won and "YOU WIN!" or "You Lose..."
+                    if endReason == "checkmate" then
+                        resultText = won and "CHECKMATE!" or "Checkmate..."
+                        reasonText = won and "You trapped their King!" or "Your King got trapped!"
+                    elseif endReason == "timeout" then
+                        resultText = won and "YOU WIN!" or "Time's Up!"
+                        reasonText = won and "Opponent ran out of time" or "You ran out of time"
+                    elseif endReason == "resignation" then
+                        resultText = won and "YOU WIN!" or "You Resigned"
+                        reasonText = won and "Opponent gave up" or "You surrendered"
+                    elseif endReason == "disconnection" then
+                        resultText = won and "YOU WIN!" or "Disconnected"
+                        reasonText = won and "Opponent left the game" or "Connection lost"
+                    else
+                        resultText = won and "YOU WIN!" or "You Lose..."
+                    end
                     emoji = won and "🎉" or "😿"
                 elseif gameState.gameState == Constants.GameState.STALEMATE then
                     isDraw = true
                     resultText = "Stalemate!"
+                    reasonText = "No legal moves but King is safe"
                     emoji = "😺"
                 elseif gameState.gameState == Constants.GameState.DRAW then
                     isDraw = true
-                    resultText = "Draw!"
+                    if endReason == "50-move rule" then
+                        resultText = "Draw!"
+                        reasonText = "50 moves without a capture"
+                    elseif endReason == "repetition" then
+                        resultText = "Draw!"
+                        reasonText = "Same position repeated 3 times"
+                    elseif endReason == "insufficient material" then
+                        resultText = "Draw!"
+                        reasonText = "Not enough pieces to checkmate"
+                    else
+                        resultText = "Draw!"
+                    end
                     emoji = "😺"
                 end
 
@@ -2678,9 +2728,9 @@ local function initialize()
                 -- AI vs AI gets neutral result text
                 if ClientState.isAIvsAI then
                     if gameState.gameState == Constants.GameState.WHITE_WIN then
-                        resultText = "White AI Wins!"
+                        resultText = endReason == "checkmate" and "White AI: Checkmate!" or "White AI Wins!"
                     elseif gameState.gameState == Constants.GameState.BLACK_WIN then
-                        resultText = "Black AI Wins!"
+                        resultText = endReason == "checkmate" and "Black AI: Checkmate!" or "Black AI Wins!"
                     end
                     emoji = "🤖"
                     won = false
@@ -2725,7 +2775,14 @@ local function initialize()
 
                     local statsLabel = rp:FindFirstChild("ResultStats")
                     if statsLabel then
-                        statsLabel.Text = moveCount > 0 and (moveCount .. " moves played") or ""
+                        local statsText = ""
+                        if reasonText ~= "" then
+                            statsText = reasonText
+                        end
+                        if moveCount > 0 then
+                            statsText = statsText .. (statsText ~= "" and " | " or "") .. moveCount .. " moves"
+                        end
+                        statsLabel.Text = statsText
                     end
 
                     -- Set popup border color based on result

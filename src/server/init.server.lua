@@ -160,6 +160,7 @@ function GameSession:updateTimeRemaining()
         else
             self.engine.gameState = Constants.GameState.WHITE_WIN
         end
+        self.engine.endReason = "timeout"
         if Constants.DEBUG then print(string.format("🐱 [SERVER] Game ended by timeout! %s ran out of time.",
             currentPlayer == Constants.Color.WHITE and "White" or "Black")) end
     end
@@ -463,6 +464,7 @@ ResignEvent.OnServerEvent:Connect(function(player, gameId)
     else
         session.engine.gameState = Constants.GameState.WHITE_WIN
     end
+    session.engine.endReason = "resignation"
 
     session:broadcastState()
     scheduleGameCleanup(gameId)
@@ -528,6 +530,7 @@ Players.PlayerRemoving:Connect(function(player)
             else
                 session.engine.gameState = Constants.GameState.WHITE_WIN
             end
+            session.engine.endReason = "disconnection"
             session:broadcastState()
         end
     end
