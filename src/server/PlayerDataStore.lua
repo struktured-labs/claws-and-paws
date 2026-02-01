@@ -12,9 +12,17 @@ local Constants = Shared.Constants
 
 local PlayerDataStore = {}
 
--- DataStore references
-local settingsStore = DataStoreService:GetDataStore("PlayerSettings_v1")
-local progressStore = DataStoreService:GetDataStore("CampaignProgress_v1")
+-- DataStore references (wrapped in pcall for unpublished places)
+local settingsStore, progressStore
+do
+    local ok1, store1 = pcall(function() return DataStoreService:GetDataStore("PlayerSettings_v1") end)
+    local ok2, store2 = pcall(function() return DataStoreService:GetDataStore("CampaignProgress_v1") end)
+    settingsStore = ok1 and store1 or nil
+    progressStore = ok2 and store2 or nil
+    if not settingsStore then
+        warn("PlayerDataStore: DataStore unavailable (place may not be published). Settings won't persist.")
+    end
+end
 
 -- Track pending saves per player to debounce
 local pendingSaves = {}
