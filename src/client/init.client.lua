@@ -165,9 +165,16 @@ end
 local function animateMove(boardFolder, fromRow, fromCol, toRow, toCol, isCapture, pieceType, onComplete)
     if Constants.DEBUG then print(string.format("🐱 [ANIM] Starting animation: [%d,%d] → [%d,%d]", fromRow, fromCol, toRow, toCol)) end
 
-    -- Mark animation as in progress
+    -- Mark animation as in progress (with safety timeout to prevent stuck board)
     ClientState.animationInProgress = true
     if Constants.DEBUG then print("🐱 [ANIM] Set animationInProgress = true") end
+
+    task.delay(5, function()
+        if ClientState.animationInProgress then
+            warn("🐱 [ANIM] Safety timeout: clearing stuck animationInProgress flag")
+            ClientState.animationInProgress = false
+        end
+    end)
 
     -- Find the moving piece
     local pieceName = string.format("Piece_%d_%d", fromRow, fromCol)
@@ -784,8 +791,8 @@ local function onSquareClicked(row, col, boardFolder, squares)
                         and Color3.fromRGB(255, 240, 220)
                         or Color3.fromRGB(80, 60, 50))
                 else
-                    -- Play move sound
-                    SoundManager.playMoveSound(pieceData and pieceData.type)
+                    -- Play move sound (use movingPieceType, not pieceData which is the target square)
+                    SoundManager.playMoveSound(movingPieceType)
                 end
 
                 if isPromotion then
@@ -1621,12 +1628,38 @@ local function createGameHUD()
     stroke.Thickness = 2
     stroke.Parent = turnLabel
 
+    -- Check warning label (pulsing "CHECK!" text)
+    local checkWarning = Instance.new("TextLabel")
+    checkWarning.Name = "CheckWarning"
+    checkWarning.Size = UDim2.new(0.5, 0, 0, 36)
+    checkWarning.AnchorPoint = Vector2.new(0.5, 0)
+    checkWarning.Position = UDim2.new(0.5, 0, 0, 68)
+    checkWarning.BackgroundColor3 = Color3.fromRGB(180, 30, 30)
+    checkWarning.BackgroundTransparency = 0.1
+    checkWarning.Text = "CHECK!"
+    checkWarning.TextColor3 = Color3.fromRGB(255, 255, 100)
+    checkWarning.Font = Enum.Font.FredokaOne
+    checkWarning.TextSize = 22
+    checkWarning.TextScaled = true
+    checkWarning.Visible = false
+    checkWarning.Parent = screenGui
+
+    local checkWarningConstraint = Instance.new("UISizeConstraint")
+    checkWarningConstraint.MaxSize = Vector2.new(200, 36)
+    checkWarningConstraint.Parent = checkWarning
+
+    Instance.new("UICorner", checkWarning).CornerRadius = UDim.new(0, 8)
+    local checkStroke = Instance.new("UIStroke")
+    checkStroke.Color = Color3.fromRGB(255, 60, 60)
+    checkStroke.Thickness = 2
+    checkStroke.Parent = checkWarning
+
     -- Capture counter (shows pieces taken by each side)
     local captureLabel = Instance.new("TextLabel")
     captureLabel.Name = "CaptureLabel"
     captureLabel.Size = UDim2.new(0.6, 0, 0, 24)
     captureLabel.AnchorPoint = Vector2.new(0.5, 0)
-    captureLabel.Position = UDim2.new(0.5, 0, 0, 68)
+    captureLabel.Position = UDim2.new(0.5, 0, 0, 108)
     captureLabel.BackgroundTransparency = 1
     captureLabel.Text = ""
     captureLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
@@ -2483,10 +2516,12 @@ local function initialize()
             end
             ClientState.lastMoveCount = currentMoveCount
 
-            -- Check warning sound (only on state transitions)
+            -- Check warning sound and visual (only on state transitions)
+            local anyInCheck = false
             if gameState.inCheck then
                 local whiteInCheck = gameState.inCheck[Constants.Color.WHITE]
                 local blackInCheck = gameState.inCheck[Constants.Color.BLACK]
+                anyInCheck = whiteInCheck or blackInCheck
 
                 if (whiteInCheck and not ClientState.lastCheckWhite)
                     or (blackInCheck and not ClientState.lastCheckBlack) then
@@ -2496,7 +2531,17 @@ local function initialize()
                 ClientState.lastCheckWhite = whiteInCheck or false
                 ClientState.lastCheckBlack = blackInCheck or false
             end
+
+            -- Show/hide CHECK! warning label
+            local checkLabel = gameHUD and gameHUD:FindFirstChild("CheckWarning")
+            if checkLabel then
+                checkLabel.Visible = anyInCheck
+            end
         else
+            -- Hide check warning on game end
+            local checkLabel = gameHUD and gameHUD:FindFirstChild("CheckWarning")
+            if checkLabel then checkLabel.Visible = false end
+
             -- Game ended - play victory/defeat SFX (music is handled below in HUD section)
             if ClientState.lastMoveCount > 0 then
                 local won = false
