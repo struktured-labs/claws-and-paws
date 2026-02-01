@@ -130,15 +130,17 @@ function TutorialManager.createHelpOverlay()
         body.Parent = section
     end
 
-    addSection("How to Play", "It's chess with cats! Tap a piece to select it (sparkles appear), then tap a green square to move there. Capture enemies by moving onto their square - watch the cat fight!", 1)
+    addSection("How to Play", "It's chess with cats on a mini 6x6 board! Tap a piece to select it (sparkles appear), then tap a green square to move there. Capture enemies by moving onto their square - watch the cat fight!", 1)
 
     addSection("Your Cat Army", "Lion (K) = King - protect him!\nPersian (Q) = Queen - moves anywhere\nMaine Coon (R) = Rook - straight lines\nSphynx (B) = Bishop - diagonals\nCaracal (N) = Knight - L-shape jumps\nAlley Cat (P) = Pawn - marches forward", 2)
 
-    addSection("Win the Game", "Checkmate the opponent's Lion King! That means trapping the King so it can't escape.\n\nYou can also win if your opponent runs out of time.", 3)
+    addSection("6x6 Board Rules", "This is a compact 6x6 board, not the usual 8x8!\n\nPawns move ONE square forward (no double first move)\nPawns promote when they reach the far end - pick Queen, Rook, Bishop, or Knight!\nPieces start in random spots each game (Fischer Random style)\nGames are fast - think quick!", 3)
 
-    addSection("Controls", "Tap/click a piece to select it\nGreen squares = valid moves\nGold square = selected piece\nMiniboard (top right) = tactical overview\nChat emotes (bottom) = send cat gestures!", 4)
+    addSection("Win the Game", "Checkmate the opponent's Lion King! That means trapping the King so it can't escape.\n\nYou can also win if your opponent runs out of time.\n\nThe game can also end in a draw by stalemate (no legal moves but King isn't in check) or if the same position repeats 3 times.", 4)
 
-    addSection("Tips for Beginners", "Start with Easy AI to learn the basics\nPawns promote to Queens at the far end\nKnights can jump over other pieces\nControl the center of the board\nDon't forget about your clock!", 5)
+    addSection("Controls", "Tap/click a piece to select it\nGreen squares = valid moves\nGold square = selected piece\nRed square = King in check - danger!\nMiniboard (top right) = tactical overview\nChat emotes (bottom) = send cat gestures!", 5)
+
+    addSection("Tips for Beginners", "Start with Easy AI to learn the basics\nPawns promote at the far end - pick your piece!\nKnights can jump over other pieces\nControl the center of the board\nWatch for CHECK! warnings\nDon't forget about your clock!", 6)
 
     -- Close button
     local closeBtn = Instance.new("TextButton")

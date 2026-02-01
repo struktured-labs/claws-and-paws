@@ -1197,6 +1197,30 @@ local function createMainMenu()
         return button
     end
 
+    -- Searching for opponent label (hidden until multiplayer mode selected)
+    local searchingLabel = Instance.new("TextLabel")
+    searchingLabel.Name = "SearchingLabel"
+    searchingLabel.Size = UDim2.new(0.8, 0, 0, 50)
+    searchingLabel.AnchorPoint = Vector2.new(0.5, 0.5)
+    searchingLabel.Position = UDim2.new(0.5, 0, 0.5, 0)
+    searchingLabel.BackgroundColor3 = Color3.fromRGB(45, 42, 55)
+    searchingLabel.BackgroundTransparency = 0.2
+    searchingLabel.Text = "Searching for opponent..."
+    searchingLabel.TextColor3 = Color3.fromRGB(255, 200, 100)
+    searchingLabel.Font = Enum.Font.FredokaOne
+    searchingLabel.TextSize = 22
+    searchingLabel.Visible = false
+    searchingLabel.ZIndex = 5
+    searchingLabel.Parent = screenGui
+
+    local searchCorner = Instance.new("UICorner")
+    searchCorner.CornerRadius = UDim.new(0, 12)
+    searchCorner.Parent = searchingLabel
+
+    local searchConstraint = Instance.new("UISizeConstraint")
+    searchConstraint.MaxSize = Vector2.new(360, 50)
+    searchConstraint.Parent = searchingLabel
+
     -- Game mode buttons
     local buttons = {
         {text = "Play vs AI (Easy)", mode = Constants.GameMode.AI_EASY},
@@ -1214,6 +1238,7 @@ local function createMainMenu()
                 RequestAIGameEvent:FireServer(btnData.mode)
             else
                 RequestMatchEvent:FireServer(btnData.mode)
+                searchingLabel.Visible = true
             end
             MusicManager.playForGameMode(btnData.mode)
             frame.Visible = false
@@ -2206,7 +2231,11 @@ local function createGameHUD()
         screenGui.Enabled = false
 
         local mainMenu = LocalPlayer.PlayerGui:FindFirstChild("MainMenu")
-        if mainMenu then mainMenu.Enabled = true end
+        if mainMenu then
+            mainMenu.Enabled = true
+            local sl = mainMenu:FindFirstChild("SearchingLabel")
+            if sl then sl.Visible = false end
+        end
     end
 
     backToMenuBtn.MouseButton1Click:Connect(resetToMenu)
@@ -2579,10 +2608,15 @@ local function initialize()
         end
         gameHUD.Enabled = true
 
-        -- Hide result overlay if a new game started (safety for rematch)
+        -- Hide result overlay and searching label if a new game started
         if gameState.gameState == Constants.GameState.IN_PROGRESS then
             local ro = gameHUD:FindFirstChild("ResultOverlay")
             if ro then ro.Visible = false end
+            local mainMenu = LocalPlayer.PlayerGui:FindFirstChild("MainMenu")
+            if mainMenu then
+                local sl = mainMenu:FindFirstChild("SearchingLabel")
+                if sl then sl.Visible = false end
+            end
         end
 
         -- Update color indicator
