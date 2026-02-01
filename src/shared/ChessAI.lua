@@ -69,7 +69,35 @@ function ChessAI.getBestMove(engine, difficulty)
     local depth = Constants.AIDepth[difficulty] or 3
     local isMaximizing = engine.currentTurn == Constants.Color.WHITE
 
-    local _, bestMove = ChessAI.minimax(engine, depth, -math.huge, math.huge, isMaximizing)
+    -- Easy AI: 35% chance to play a random move (makes it feel less robotic)
+    if difficulty == Constants.GameMode.AI_EASY then
+        if math.random() < 0.35 then
+            local randomMove = ChessAI.getRandomMove(engine)
+            if randomMove then return randomMove end
+        end
+    end
+
+    -- Hard AI: use iterative deepening with time limit
+    -- Start at depth 1, increase until we hit the target depth or time limit
+    local startTime = tick and tick() or os.clock()
+    local timeLimit = 3.0 -- Max 3 seconds for Hard AI
+    local bestMove = nil
+
+    if difficulty == Constants.GameMode.AI_HARD and depth >= 4 then
+        for d = 1, depth do
+            local _, move = ChessAI.minimax(engine, d, -math.huge, math.huge, isMaximizing)
+            if move then
+                bestMove = move
+            end
+            local elapsed = (tick and tick() or os.clock()) - startTime
+            if elapsed > timeLimit then
+                break
+            end
+        end
+    else
+        local _, move = ChessAI.minimax(engine, depth, -math.huge, math.huge, isMaximizing)
+        bestMove = move
+    end
 
     return bestMove
 end

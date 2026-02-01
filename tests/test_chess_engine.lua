@@ -742,6 +742,118 @@ test("simple capture game sequence", function()
 end)
 
 ----------------------------------------------------------------------
+log("\n=== Last Move Tracking ===")
+----------------------------------------------------------------------
+
+test("serialize includes lastMove after a move", function()
+    local e = ChessEngine.new()
+    e:setupBoard()
+    -- Move a pawn
+    e:makeMove(2, 1, 3, 1)
+    local data = e:serialize()
+    assert_true(data.lastMove ~= nil, "lastMove should exist")
+    assert_eq(data.lastMove.fromRow, 2, "lastMove fromRow")
+    assert_eq(data.lastMove.fromCol, 1, "lastMove fromCol")
+    assert_eq(data.lastMove.toRow, 3, "lastMove toRow")
+    assert_eq(data.lastMove.toCol, 1, "lastMove toCol")
+end)
+
+test("serialize has no lastMove on fresh board", function()
+    local e = ChessEngine.new()
+    e:setupBoard()
+    local data = e:serialize()
+    assert_true(data.lastMove == nil, "no lastMove on fresh board")
+end)
+
+test("lastMove updates on each move", function()
+    local e = ChessEngine.new()
+    e:setupBoard()
+    e:makeMove(2, 1, 3, 1)
+    e:makeMove(5, 1, 4, 1)
+    local data = e:serialize()
+    assert_eq(data.lastMove.fromRow, 5, "last move was black's")
+    assert_eq(data.lastMove.toRow, 4, "moved to row 4")
+end)
+
+----------------------------------------------------------------------
+log("\n=== Position Hash Consistency ===")
+----------------------------------------------------------------------
+
+test("identical positions produce identical hashes", function()
+    local e1 = ChessEngine.new()
+    e1:setupBoard()
+    local e2 = ChessEngine.new()
+    e2:setupBoard()
+    assert_eq(e1:getPositionHash(), e2:getPositionHash(), "same position = same hash")
+end)
+
+test("different positions produce different hashes", function()
+    local e1 = ChessEngine.new()
+    e1:setupBoard()
+    local hash1 = e1:getPositionHash()
+    e1:makeMove(2, 1, 3, 1)
+    local hash2 = e1:getPositionHash()
+    assert_true(hash1 ~= hash2, "position changed = different hash")
+end)
+
+test("hash includes turn information", function()
+    -- Two positions with same pieces but different turns should differ
+    local e = ChessEngine.new()
+    e:setupBoard()
+    local hashWhite = e:getPositionHash()
+    e.currentTurn = Constants.Color.BLACK
+    local hashBlack = e:getPositionHash()
+    assert_true(hashWhite ~= hashBlack, "different turn = different hash")
+    e.currentTurn = Constants.Color.WHITE -- restore
+end)
+
+----------------------------------------------------------------------
+log("\n=== Campaign Data ===")
+----------------------------------------------------------------------
+
+-- Load CampaignData for testing
+local CampaignData = dofile("src/shared/CampaignData.lua")
+
+test("CampaignData has 5 bosses", function()
+    assert_eq(#CampaignData.BOSSES, 5, "should have 5 bosses")
+end)
+
+test("first boss is always unlocked", function()
+    assert_true(CampaignData.BOSSES[1].unlocked, "whiskers is unlocked by default")
+end)
+
+test("getBoss returns correct boss", function()
+    local boss = CampaignData.getBoss("shadow")
+    assert_true(boss ~= nil, "shadow exists")
+    assert_eq(boss.name, "Shadow", "correct name")
+    assert_eq(boss.difficulty, "Hard", "correct difficulty")
+end)
+
+test("getBoss returns nil for invalid id", function()
+    assert_true(CampaignData.getBoss("nonexistent") == nil, "nil for bad id")
+end)
+
+test("getUnlockedBosses with no progress returns first boss", function()
+    local unlocked = CampaignData.getUnlockedBosses({})
+    assert_eq(#unlocked, 1, "only first boss unlocked")
+    assert_eq(unlocked[1].id, "whiskers", "whiskers is first")
+end)
+
+test("getUnlockedBosses unlocks next after defeating a boss", function()
+    local unlocked = CampaignData.getUnlockedBosses({whiskers = true})
+    assert_eq(#unlocked, 2, "two bosses unlocked")
+    assert_eq(unlocked[2].id, "mittens", "mittens unlocked after whiskers")
+end)
+
+test("getCompletionPercentage calculates correctly", function()
+    assert_eq(CampaignData.getCompletionPercentage({}), 0, "0% with no progress")
+    assert_eq(CampaignData.getCompletionPercentage({whiskers = true}), 20, "20% with 1/5")
+    assert_eq(CampaignData.getCompletionPercentage({
+        whiskers = true, mittens = true, shadow = true, duchess = true, lucifer = true
+    }), 100, "100% with all defeated")
+end)
+
+----------------------------------------------------------------------
 -- Results
 ----------------------------------------------------------------------
 log("\n========================================")

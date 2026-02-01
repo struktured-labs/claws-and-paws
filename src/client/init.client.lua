@@ -1162,6 +1162,7 @@ local function createMainMenu()
         btnCorner.Parent = button
 
         button.MouseButton1Click:Connect(function()
+            SoundManager.playSelectSound()
             ClientState.currentBoss = nil -- Not a campaign game
             if btnData.mode:sub(1, 2) == "AI" then
                 RequestAIGameEvent:FireServer(btnData.mode)
@@ -1295,6 +1296,7 @@ local function createMainMenu()
     helpBtnCorner.Parent = helpBtn
 
     helpBtn.MouseButton1Click:Connect(function()
+        SoundManager.playSelectSound()
         TutorialManager.createHelpOverlay()
     end)
 
@@ -1875,6 +1877,7 @@ local function createGameHUD()
     menuBtnCorner.Parent = menuBtn
 
     menuBtn.MouseButton1Click:Connect(function()
+        SoundManager.playSelectSound()
         -- If game is active, resign first with confirmation
         if ClientState.currentGameId and ClientState.gameState
             and ClientState.gameState.gameState == Constants.GameState.IN_PROGRESS
@@ -2017,6 +2020,7 @@ local function createGameHUD()
     newGameCorner.Parent = newGameBtn
 
     newGameBtn.MouseButton1Click:Connect(function()
+        SoundManager.playSelectSound()
         -- Reset client state
         ClientState.currentGameId = nil
         ClientState.gameState = nil
@@ -2732,11 +2736,20 @@ local function initialize()
                     ClientState.hoverEffect:Destroy()
                 end
 
+                -- Determine glow color: gold for own pieces, bright green for valid move targets
+                local glowColor = Color3.fromRGB(255, 255, 150) -- Gold for own pieces
+                local glowBrightness = 2
+                if not isOurPiece and ClientState.selectedSquare then
+                    -- Hovering over a valid move target
+                    glowColor = Color3.fromRGB(180, 255, 180) -- Bright green
+                    glowBrightness = 3
+                end
+
                 -- Add new hover effect to the ground square
                 local hoverGlow = Instance.new("SurfaceLight")
                 hoverGlow.Name = "HoverGlow"
-                hoverGlow.Color = Color3.fromRGB(255, 255, 150)
-                hoverGlow.Brightness = 2
+                hoverGlow.Color = glowColor
+                hoverGlow.Brightness = glowBrightness
                 hoverGlow.Range = 10
                 hoverGlow.Face = Enum.NormalId.Top
                 hoverGlow.Parent = square
