@@ -1079,11 +1079,18 @@ local function createMainMenu()
 
     local frame = Instance.new("Frame")
     frame.Name = "MenuFrame"
-    frame.Size = UDim2.new(0, 300, 0, 510) -- Increased to fit AI vs AI button
-    frame.Position = UDim2.new(0.5, -150, 0.5, -255)
+    frame.Size = UDim2.new(0.85, 0, 0, 510)
+    frame.AnchorPoint = Vector2.new(0.5, 0.5)
+    frame.Position = UDim2.new(0.5, 0, 0.5, 0)
     frame.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
     frame.BorderSizePixel = 0
     frame.Parent = screenGui
+
+    -- Constrain to reasonable size on desktop
+    local menuSizeConstraint = Instance.new("UISizeConstraint")
+    menuSizeConstraint.MaxSize = Vector2.new(320, 510)
+    menuSizeConstraint.MinSize = Vector2.new(250, 400)
+    menuSizeConstraint.Parent = frame
 
     local corner = Instance.new("UICorner")
     corner.CornerRadius = UDim.new(0, 10)
@@ -1679,10 +1686,87 @@ local function createGameHUD()
     resignCorner.CornerRadius = UDim.new(0, 5)
     resignCorner.Parent = resignBtn
 
+    -- Resign confirmation state
+    local resignConfirmVisible = false
+    local resignConfirmFrame = nil
+
     resignBtn.MouseButton1Click:Connect(function()
-        if ClientState.currentGameId then
-            ResignEvent:FireServer(ClientState.currentGameId)
+        if not ClientState.currentGameId then return end
+        if resignConfirmVisible then return end
+
+        -- Show confirmation popup
+        resignConfirmVisible = true
+        resignConfirmFrame = Instance.new("Frame")
+        resignConfirmFrame.Name = "ResignConfirm"
+        resignConfirmFrame.Size = UDim2.new(0, 240, 0, 100)
+        resignConfirmFrame.AnchorPoint = Vector2.new(1, 1)
+        resignConfirmFrame.Position = UDim2.new(1, -120, 1, -70)
+        resignConfirmFrame.BackgroundColor3 = Color3.fromRGB(60, 30, 30)
+        resignConfirmFrame.BorderSizePixel = 0
+        resignConfirmFrame.Parent = screenGui
+
+        local rcCorner = Instance.new("UICorner")
+        rcCorner.CornerRadius = UDim.new(0, 8)
+        rcCorner.Parent = resignConfirmFrame
+
+        local rcStroke = Instance.new("UIStroke")
+        rcStroke.Color = Color3.fromRGB(200, 80, 80)
+        rcStroke.Parent = resignConfirmFrame
+
+        local rcLabel = Instance.new("TextLabel")
+        rcLabel.Size = UDim2.new(1, 0, 0, 35)
+        rcLabel.BackgroundTransparency = 1
+        rcLabel.Text = "Really resign?"
+        rcLabel.TextColor3 = Color3.fromRGB(255, 200, 200)
+        rcLabel.Font = Enum.Font.GothamBold
+        rcLabel.TextSize = 16
+        rcLabel.Parent = resignConfirmFrame
+
+        local yesBtn = Instance.new("TextButton")
+        yesBtn.Size = UDim2.new(0.45, 0, 0, 40)
+        yesBtn.Position = UDim2.new(0.025, 0, 0, 45)
+        yesBtn.BackgroundColor3 = Color3.fromRGB(200, 60, 60)
+        yesBtn.Text = "Yes"
+        yesBtn.TextColor3 = Color3.new(1, 1, 1)
+        yesBtn.Font = Enum.Font.GothamBold
+        yesBtn.TextSize = 16
+        yesBtn.Parent = resignConfirmFrame
+        Instance.new("UICorner", yesBtn).CornerRadius = UDim.new(0, 6)
+
+        local noBtn = Instance.new("TextButton")
+        noBtn.Size = UDim2.new(0.45, 0, 0, 40)
+        noBtn.Position = UDim2.new(0.525, 0, 0, 45)
+        noBtn.BackgroundColor3 = Color3.fromRGB(80, 120, 80)
+        noBtn.Text = "No"
+        noBtn.TextColor3 = Color3.new(1, 1, 1)
+        noBtn.Font = Enum.Font.GothamBold
+        noBtn.TextSize = 16
+        noBtn.Parent = resignConfirmFrame
+        Instance.new("UICorner", noBtn).CornerRadius = UDim.new(0, 6)
+
+        local function closeConfirm()
+            if resignConfirmFrame then
+                resignConfirmFrame:Destroy()
+                resignConfirmFrame = nil
+            end
+            resignConfirmVisible = false
         end
+
+        yesBtn.MouseButton1Click:Connect(function()
+            ResignEvent:FireServer(ClientState.currentGameId)
+            closeConfirm()
+        end)
+
+        noBtn.MouseButton1Click:Connect(function()
+            closeConfirm()
+        end)
+
+        -- Auto-dismiss after 5 seconds
+        task.delay(5, function()
+            if resignConfirmVisible then
+                closeConfirm()
+            end
+        end)
     end)
 
     -- Reset Camera button
@@ -1704,6 +1788,26 @@ local function createGameHUD()
     resetCamBtn.MouseButton1Click:Connect(function()
         CameraController.resetCamera()
         SoundManager.playSelectSound()
+    end)
+
+    -- In-game settings button (gear icon, next to camera reset)
+    local inGameSettingsBtn = Instance.new("TextButton")
+    inGameSettingsBtn.Name = "InGameSettingsButton"
+    inGameSettingsBtn.Size = UDim2.new(0, 40, 0, 40)
+    inGameSettingsBtn.Position = UDim2.new(1, -110, 1, -110)
+    inGameSettingsBtn.BackgroundColor3 = Color3.fromRGB(100, 100, 100)
+    inGameSettingsBtn.Text = "⚙"
+    inGameSettingsBtn.TextColor3 = Color3.new(1, 1, 1)
+    inGameSettingsBtn.Font = Enum.Font.GothamBold
+    inGameSettingsBtn.TextSize = 22
+    inGameSettingsBtn.Parent = screenGui
+
+    Instance.new("UICorner", inGameSettingsBtn).CornerRadius = UDim.new(0, 8)
+
+    inGameSettingsBtn.MouseButton1Click:Connect(function()
+        SettingsManager.createSettingsUI(function()
+            SettingsManager.applyToBoardConfig(BoardConfig)
+        end)
     end)
 
     -- New Game button (hidden until game ends)
@@ -1751,44 +1855,85 @@ local function createGameHUD()
         end
     end)
 
-    -- Gesture menu
+    -- Gesture menu (improved with cat-themed icons and labels)
     local gestureFrame = Instance.new("Frame")
     gestureFrame.Name = "GestureMenu"
-    gestureFrame.Size = UDim2.new(0, 300, 0, 50)
-    gestureFrame.Position = UDim2.new(0.5, -150, 1, -70)
-    gestureFrame.BackgroundTransparency = 1
+    gestureFrame.Size = UDim2.new(0, 280, 0, 48)
+    gestureFrame.AnchorPoint = Vector2.new(0.5, 1)
+    gestureFrame.Position = UDim2.new(0.5, 0, 1, -15)
+    gestureFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 45)
+    gestureFrame.BackgroundTransparency = 0.3
     gestureFrame.Parent = screenGui
 
-    local gestures = {"HappyMeow", "AngryHiss", "SlyGrin", "PawWave"}
-    local gestureEmojis = {
-        HappyMeow = ":3",
-        AngryHiss = ">:(",
-        SlyGrin = ";)",
-        PawWave = "o/",
+    local gfCorner = Instance.new("UICorner")
+    gfCorner.CornerRadius = UDim.new(0, 12)
+    gfCorner.Parent = gestureFrame
+
+    local gestureList = Instance.new("UIListLayout")
+    gestureList.FillDirection = Enum.FillDirection.Horizontal
+    gestureList.HorizontalAlignment = Enum.HorizontalAlignment.Center
+    gestureList.VerticalAlignment = Enum.VerticalAlignment.Center
+    gestureList.Padding = UDim.new(0, 6)
+    gestureList.Parent = gestureFrame
+
+    local gestures = {
+        {id = "HappyMeow", icon = ":3", tip = "Happy"},
+        {id = "AngryHiss", icon = ">:(", tip = "Hiss"},
+        {id = "SlyGrin", icon = ";)", tip = "Sly"},
+        {id = "PawWave", icon = "o/", tip = "Wave"},
     }
 
-    for i, gesture in ipairs(gestures) do
+    for _, gesture in ipairs(gestures) do
         local gestureBtn = Instance.new("TextButton")
-        gestureBtn.Name = gesture
-        gestureBtn.Size = UDim2.new(0, 60, 0, 40)
-        gestureBtn.Position = UDim2.new(0, (i - 1) * 70, 0, 0)
-        gestureBtn.BackgroundColor3 = Color3.fromRGB(80, 80, 120)
-        gestureBtn.Text = gestureEmojis[gesture]
+        gestureBtn.Name = gesture.id
+        gestureBtn.Size = UDim2.new(0, 62, 0, 38)
+        gestureBtn.BackgroundColor3 = Color3.fromRGB(70, 65, 90)
+        gestureBtn.Text = gesture.icon
         gestureBtn.TextColor3 = Color3.new(1, 1, 1)
         gestureBtn.Font = Enum.Font.GothamBold
-        gestureBtn.TextSize = 20
+        gestureBtn.TextSize = 18
         gestureBtn.Parent = gestureFrame
 
-        local gCorner = Instance.new("UICorner")
-        gCorner.CornerRadius = UDim.new(0, 5)
-        gCorner.Parent = gestureBtn
+        Instance.new("UICorner", gestureBtn).CornerRadius = UDim.new(0, 8)
+
+        gestureBtn.MouseEnter:Connect(function()
+            gestureBtn.BackgroundColor3 = Color3.fromRGB(100, 95, 130)
+        end)
+        gestureBtn.MouseLeave:Connect(function()
+            gestureBtn.BackgroundColor3 = Color3.fromRGB(70, 65, 90)
+        end)
 
         gestureBtn.MouseButton1Click:Connect(function()
             if ClientState.currentGameId then
-                SendGestureEvent:FireServer(ClientState.currentGameId, gesture)
+                SendGestureEvent:FireServer(ClientState.currentGameId, gesture.id)
+                -- Flash the button to confirm send
+                gestureBtn.BackgroundColor3 = Color3.fromRGB(80, 200, 120)
+                task.delay(0.3, function()
+                    gestureBtn.BackgroundColor3 = Color3.fromRGB(70, 65, 90)
+                end)
             end
         end)
     end
+
+    -- Gesture received display (floating speech bubble)
+    local gestureBubble = Instance.new("TextLabel")
+    gestureBubble.Name = "GestureBubble"
+    gestureBubble.Size = UDim2.new(0, 160, 0, 50)
+    gestureBubble.AnchorPoint = Vector2.new(0.5, 1)
+    gestureBubble.Position = UDim2.new(0.5, 0, 0, 85)
+    gestureBubble.BackgroundColor3 = Color3.fromRGB(60, 55, 80)
+    gestureBubble.BackgroundTransparency = 0.1
+    gestureBubble.Text = ""
+    gestureBubble.TextColor3 = Color3.fromRGB(255, 220, 150)
+    gestureBubble.Font = Enum.Font.FredokaOne
+    gestureBubble.TextSize = 22
+    gestureBubble.Visible = false
+    gestureBubble.Parent = screenGui
+
+    Instance.new("UICorner", gestureBubble).CornerRadius = UDim.new(0, 12)
+    local bubbleStroke = Instance.new("UIStroke")
+    bubbleStroke.Color = Color3.fromRGB(255, 200, 100)
+    bubbleStroke.Parent = gestureBubble
 
     -- Create miniboard on the right side
     local miniboardContainer, updateMiniboard = createMiniboard(screenGui)
@@ -1871,12 +2016,10 @@ local function initialize()
     -- Create help button
     TutorialManager.createHelpButton()
 
-    -- TEMPORARILY DISABLED for debugging
-    -- Show tutorial after brief delay
-    -- task.delay(2, function()
-    --     TutorialManager.showInitialTutorial()
-    -- end)
-    print("🐱 [DEBUG] Tutorial disabled for testing")
+    -- Show tutorial for first-time players
+    task.delay(2, function()
+        TutorialManager.showInitialTutorial()
+    end)
 
     -- Handle game state updates
     GetGameStateFunction.OnClientInvoke = function(gameState)
@@ -2026,42 +2169,61 @@ local function initialize()
                         stroke.Color = Color3.fromRGB(255, 200, 100)
                     end
                 end
-            elseif gameState.gameState == Constants.GameState.WHITE_WIN then
-                local won = ClientState.playerColor == Constants.Color.WHITE
-                turnLabel.Text = won and "🎉 YOU WIN! 🎉" or "😿 You Lose..."
-                turnLabel.TextColor3 = won and Color3.fromRGB(255, 215, 0) or Color3.fromRGB(200, 100, 100)
-                -- Play victory/defeat music
-                if not ClientState.isAIvsAI then
-                    if won then MusicManager.playVictoryMusic() else MusicManager.playDefeatMusic() end
+            else
+                -- Game over - determine result
+                local won = false
+                local isDraw = false
+                local resultText = ""
+
+                if gameState.gameState == Constants.GameState.WHITE_WIN then
+                    won = ClientState.playerColor == Constants.Color.WHITE
+                    resultText = won and "YOU WIN!" or "You Lose..."
+                elseif gameState.gameState == Constants.GameState.BLACK_WIN then
+                    won = ClientState.playerColor == Constants.Color.BLACK
+                    resultText = won and "YOU WIN!" or "You Lose..."
+                elseif gameState.gameState == Constants.GameState.STALEMATE then
+                    isDraw = true
+                    resultText = "Stalemate - Draw!"
+                elseif gameState.gameState == Constants.GameState.DRAW then
+                    isDraw = true
+                    resultText = "Draw!"
                 end
-                -- Show New Game button
-                local newGameBtn = gameHUD:FindFirstChild("NewGameButton")
-                if newGameBtn then newGameBtn.Visible = true end
-            elseif gameState.gameState == Constants.GameState.BLACK_WIN then
-                local won = ClientState.playerColor == Constants.Color.BLACK
-                turnLabel.Text = won and "🎉 YOU WIN! 🎉" or "😿 You Lose..."
-                turnLabel.TextColor3 = won and Color3.fromRGB(255, 215, 0) or Color3.fromRGB(200, 100, 100)
-                -- Play victory/defeat music
-                if not ClientState.isAIvsAI then
-                    if won then MusicManager.playVictoryMusic() else MusicManager.playDefeatMusic() end
+
+                -- AI vs AI gets neutral result text
+                if ClientState.isAIvsAI then
+                    if gameState.gameState == Constants.GameState.WHITE_WIN then
+                        resultText = "White AI Wins!"
+                    elseif gameState.gameState == Constants.GameState.BLACK_WIN then
+                        resultText = "Black AI Wins!"
+                    end
+                    won = false
                 end
+
+                -- Add move count stats
+                local moveCount = gameState.moveHistory and #gameState.moveHistory or 0
+                local statsText = moveCount > 0 and (" (" .. moveCount .. " moves)") or ""
+
+                if isDraw then
+                    turnLabel.Text = "😺 " .. resultText .. statsText
+                    turnLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+                    MusicManager.playMenuMusic()
+                else
+                    turnLabel.Text = (won and "🎉 " or "😿 ") .. resultText .. statsText
+                    turnLabel.TextColor3 = won and Color3.fromRGB(255, 215, 0) or Color3.fromRGB(200, 100, 100)
+                    if not ClientState.isAIvsAI then
+                        if won then MusicManager.playVictoryMusic() else MusicManager.playDefeatMusic() end
+                    else
+                        MusicManager.playMenuMusic()
+                    end
+                end
+
                 -- Show New Game button
                 local newGameBtn = gameHUD:FindFirstChild("NewGameButton")
                 if newGameBtn then newGameBtn.Visible = true end
-            elseif gameState.gameState == Constants.GameState.STALEMATE then
-                turnLabel.Text = "😺 Stalemate - Draw!"
-                turnLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
-                MusicManager.playMenuMusic()
-                -- Show New Game button
-                local newGameBtn = gameHUD:FindFirstChild("NewGameButton")
-                if newGameBtn then newGameBtn.Visible = true end
-            elseif gameState.gameState == Constants.GameState.DRAW then
-                turnLabel.Text = "😺 Draw!"
-                turnLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
-                MusicManager.playMenuMusic()
-                -- Show New Game button
-                local newGameBtn = gameHUD:FindFirstChild("NewGameButton")
-                if newGameBtn then newGameBtn.Visible = true end
+
+                -- Hide resign button
+                local resignBtnEnd = gameHUD:FindFirstChild("ResignButton")
+                if resignBtnEnd then resignBtnEnd.Visible = false end
             end
         end
 
@@ -2075,83 +2237,101 @@ local function initialize()
         end
     end
 
-    -- Handle gesture received
+    -- Handle gesture received - show floating speech bubble
     SendGestureEvent.OnClientEvent:Connect(function(gesture)
-        -- Show gesture notification
-        print("Opponent gesture:", gesture)
-        -- TODO: Show visual gesture notification
+        local gestureTexts = {
+            HappyMeow = ":3  Meow!",
+            AngryHiss = ">:(  Hssss!",
+            SlyGrin = ";)  Heh heh",
+            PawWave = "o/  Hey!",
+            Surprised = "O.O  Whoa!",
+            SadMeow = ":(  Mew...",
+            SleepyYawn = "Zzz...",
+            FishOffering = "Here, fishy!",
+        }
+
+        local bubbleGui = gameHUD and gameHUD:FindFirstChild("GestureBubble")
+        if bubbleGui then
+            bubbleGui.Text = gestureTexts[gesture] or gesture
+            bubbleGui.Visible = true
+            SoundManager.playHappyMeow()
+
+            -- Auto-hide after 3 seconds
+            task.delay(3, function()
+                if bubbleGui and bubbleGui.Parent then
+                    bubbleGui.Visible = false
+                end
+            end)
+        end
     end)
 
     -- Handle clicks
+    -- Shared board click handler (works for both mouse and touch)
+    local function handleBoardInput(screenX, screenY)
+        -- Skip fight animation if one is active
+        if BattleAnimations.isFightActive() then
+            BattleAnimations.skipFight()
+            return
+        end
+
+        local camera = workspace.CurrentCamera
+        local ray = camera:ScreenPointToRay(screenX, screenY)
+
+        local raycastParams = RaycastParams.new()
+        raycastParams.FilterType = Enum.RaycastFilterType.Exclude
+        raycastParams.FilterDescendantsInstances = {}
+
+        local result = workspace:Raycast(ray.Origin, ray.Direction * 1000, raycastParams)
+        if result then
+            local row = result.Instance:GetAttribute("Row")
+            local col = result.Instance:GetAttribute("Col")
+
+            if row and col then
+                onSquareClicked(tonumber(row), tonumber(col), boardFolder, squares)
+            else
+                -- Try to find board square underneath
+                local ignoreList = {result.Instance}
+                local current = result.Instance
+                while current and current ~= workspace do
+                    table.insert(ignoreList, current)
+                    current = current.Parent
+                end
+
+                local params2 = RaycastParams.new()
+                params2.FilterType = Enum.RaycastFilterType.Exclude
+                params2.FilterDescendantsInstances = ignoreList
+
+                local result2 = workspace:Raycast(ray.Origin, ray.Direction * 1000, params2)
+                if result2 then
+                    local row2 = result2.Instance:GetAttribute("Row")
+                    local col2 = result2.Instance:GetAttribute("Col")
+                    if row2 and col2 then
+                        onSquareClicked(tonumber(row2), tonumber(col2), boardFolder, squares)
+                    end
+                end
+            end
+        end
+    end
+
+    -- Mouse click handler
     UserInputService.InputBegan:Connect(function(input, processed)
         if processed then return end
 
         if input.UserInputType == Enum.UserInputType.MouseButton1 then
-            -- Skip fight animation if one is active
-            if BattleAnimations.isFightActive() then
-                print("🐱 [CLICK] Skipping fight animation!")
-                BattleAnimations.skipFight()
-                return
-            end
-
-            print("🐱 [CLICK] Mouse clicked at screen position: " .. input.Position.X .. "," .. input.Position.Y)
-
-            local camera = workspace.CurrentCamera
             local mousePos = UserInputService:GetMouseLocation()
-            local ray = camera:ScreenPointToRay(mousePos.X, mousePos.Y)
-
-            print("🐱 [CLICK] Ray origin: " .. tostring(ray.Origin))
-            print("🐱 [CLICK] Ray direction: " .. tostring(ray.Direction))
-
-            local raycastParams = RaycastParams.new()
-            raycastParams.FilterType = Enum.RaycastFilterType.Exclude
-            raycastParams.FilterDescendantsInstances = {}
-
-            -- First, try to hit ANYTHING to see what's in the way
-            local result = workspace:Raycast(ray.Origin, ray.Direction * 1000, raycastParams)
-
-            if result then
-                print("🐱 [CLICK] Hit something: " .. result.Instance.Name .. " in " .. (result.Instance.Parent and result.Instance.Parent.Name or "nil"))
-                print("🐱 [CLICK] Hit position: " .. tostring(result.Position))
-                print("🐱 [CLICK] Distance: " .. (result.Position - ray.Origin).Magnitude)
-
-                -- Check if it's a board square
-                local row = result.Instance:GetAttribute("Row")
-                local col = result.Instance:GetAttribute("Col")
-
-                if row and col then
-                    print("🐱 [CLICK] ✓ Found board square with Row=" .. row .. ", Col=" .. col)
-                    onSquareClicked(tonumber(row), tonumber(col), boardFolder, squares)
-                else
-                    print("🐱 [CLICK] ✗ Not a board square (no Row/Col attributes)")
-                    -- Try to find the board square underneath
-                    local ignoreList = {result.Instance}
-                    local current = result.Instance
-                    while current and current ~= workspace do
-                        table.insert(ignoreList, current)
-                        current = current.Parent
-                    end
-
-                    local params2 = RaycastParams.new()
-                    params2.FilterType = Enum.RaycastFilterType.Exclude
-                    params2.FilterDescendantsInstances = ignoreList
-
-                    local result2 = workspace:Raycast(ray.Origin, ray.Direction * 1000, params2)
-                    if result2 then
-                        local row2 = result2.Instance:GetAttribute("Row")
-                        local col2 = result2.Instance:GetAttribute("Col")
-                        print("🐱 [CLICK] Second raycast hit: " .. result2.Instance.Name)
-                        if row2 and col2 then
-                            print("🐱 [CLICK] ✓ Found board square underneath: Row=" .. row2 .. ", Col=" .. col2)
-                            onSquareClicked(tonumber(row2), tonumber(col2), boardFolder, squares)
-                        end
-                    end
-                end
-            else
-                print("🐱 [CLICK] ✗ Raycast hit nothing!")
-            end
+            handleBoardInput(mousePos.X, mousePos.Y)
         end
     end)
+
+    -- Touch tap handler (for mobile)
+    UserInputService.TouchTap:Connect(function(touchPositions, processed)
+        if processed then return end
+        if #touchPositions > 0 then
+            local pos = touchPositions[1]
+            handleBoardInput(pos.X, pos.Y)
+        end
+    end)
+
 
     -- Handle hover effects using click zones (same as click detection)
     local RunService = game:GetService("RunService")
