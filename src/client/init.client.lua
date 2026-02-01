@@ -1264,7 +1264,7 @@ local function createMiniboard(parent)
     local container = Instance.new("Frame")
     container.Name = "MiniboardContainer"
     container.Size = UDim2.new(0, MINI_SQUARE_SIZE * BOARD_SIZE + 20, 0, MINI_SQUARE_SIZE * BOARD_SIZE + 50)
-    container.Position = UDim2.new(1, -200, 0.5, -100)
+    container.Position = UDim2.new(1, -200, 0, 130)
     container.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
     container.BackgroundTransparency = 0.1
     container.Parent = parent
@@ -1967,8 +1967,8 @@ local function createGameHUD()
     -- Move history panel (right side, collapsible)
     local historyPanel = Instance.new("Frame")
     historyPanel.Name = "MoveHistory"
-    historyPanel.Size = UDim2.new(0, 140, 0, 200)
-    historyPanel.Position = UDim2.new(1, -155, 0.5, -100)
+    historyPanel.Size = UDim2.new(0, 140, 0, 160)
+    historyPanel.Position = UDim2.new(1, -155, 1, -230)
     historyPanel.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
     historyPanel.BackgroundTransparency = 0.1
     historyPanel.BorderSizePixel = 0
@@ -2299,10 +2299,12 @@ local function initialize()
         if gameState.gameState == Constants.GameState.IN_PROGRESS then
             -- Detect new moves by comparing moveHistory length
             local currentMoveCount = gameState.moveHistory and #gameState.moveHistory or 0
-            if currentMoveCount > ClientState.lastMoveCount and ClientState.lastMoveCount > 0 then
-                -- A new move was made - check if it was NOT our move
+            if currentMoveCount > ClientState.lastMoveCount then
+                -- A new move was made
                 local lastMove = gameState.moveHistory[currentMoveCount]
-                if lastMove and lastMove.color ~= ClientState.playerColor then
+                -- Play sound for opponent/AI moves, or all moves in AI vs AI
+                local isOpponentMove = lastMove and lastMove.color ~= ClientState.playerColor
+                if lastMove and (isOpponentMove or ClientState.isAIvsAI) and ClientState.lastMoveCount > 0 then
                     if lastMove.captured then
                         SoundManager.playCaptureSound()
                     else
