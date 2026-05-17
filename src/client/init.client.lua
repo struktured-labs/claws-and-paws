@@ -172,7 +172,7 @@ local function animateMove(boardFolder, fromRow, fromCol, toRow, toCol, isCaptur
         (toRow - 3.5) * BoardConfig.squareSize
     )
 
-    -- If this is a capture, remove the target piece with animation
+    -- If this is a capture, trigger death animation on the target first
     if isCapture then
         local targetPieceName = string.format("Piece_%d_%d", toRow, toCol)
         local targetPiece = boardFolder:FindFirstChild(targetPieceName)
@@ -181,18 +181,17 @@ local function animateMove(boardFolder, fromRow, fromCol, toRow, toCol, isCaptur
             if targetPiece:IsA("Model") then
                 targetPart = targetPiece.PrimaryPart or targetPiece:FindFirstChildWhichIsA("BasePart")
             end
-
             if targetPart then
                 BattleAnimations.fadeOutCapture(targetPart)
             end
         end
 
-        -- Use pounce animation for captures
-        BattleAnimations.pounceCapture(mainPart, fromPos, toPos, onComplete)
-    else
-        -- Use piece-specific animation for regular moves
-        BattleAnimations.smartMove(mainPart, fromPos, toPos, pieceType, onComplete)
+        -- Screen flash for dramatic captures
+        ParticleEffects.screenFlash(Color3.fromRGB(255, 80, 80), 0.35)
     end
+
+    -- Route to piece-specific animation (captures use dedicated capture anims)
+    BattleAnimations.smartMove(piece, fromPos, toPos, pieceType, isCapture, onComplete)
 end
 
 -- Create the chess board
@@ -410,18 +409,19 @@ local function onSquareClicked(row, col, boardFolder, squares)
             animateMove(boardFolder, fromRow, fromCol, row, col, isCapture, movingPieceType, function()
                 -- Animation complete - now update server
                 if isCapture then
-                    -- Play capture sound and effect
                     SoundManager.playCaptureSound()
                     local targetPos = Vector3.new(
                         (col - 3.5) * BoardConfig.squareSize,
                         3.5,
                         (row - 3.5) * BoardConfig.squareSize
                     )
+                    -- Multi-wave particle burst at kill site
                     ParticleEffects.captureExplosion(targetPos, targetPiece.color == Constants.Color.WHITE
                         and Color3.fromRGB(255, 240, 220)
                         or Color3.fromRGB(80, 60, 50))
+                    -- Gold flash for the player who captured
+                    ParticleEffects.screenFlash(Color3.fromRGB(255, 215, 0), 0.25)
                 else
-                    -- Play move sound
                     SoundManager.playMoveSound(pieceData and pieceData.type)
                 end
 
@@ -953,8 +953,29 @@ local function initialize()
         end
 
         -- Skip animations on initial game setup
-        local skipAnimation = ClientState.gameState == nil
-        updateBoardVisuals(boardFolder, squares, gameState, skipAnimation)
+        local isFirstLoad = ClientState.gameState == nil
+        updateBoardVisuals(boardFolder, squares, gameState, isFirstLoad)
+
+        -- Check detection: shake the king and flash screen
+        if not isFirstLoad and gameState.gameState == Constants.GameState.IN_PROGRESS then
+            local engine = Shared.ChessEngine.new()
+            engine:deserialize(gameState)
+            if engine:isInCheck(gameState.currentTurn) then
+                -- Find the king piece on the board and shake it
+                for row = 1, Constants.BOARD_SIZE do
+                    for col = 1, Constants.BOARD_SIZE do
+                        local pd = gameState.board[row] and gameState.board[row][col]
+                        if pd and pd.type == Constants.PieceType.KING and pd.color == gameState.currentTurn then
+                            local kingPiece = boardFolder:FindFirstChild(string.format("Piece_%d_%d", row, col))
+                            if kingPiece then
+                                BattleAnimations.checkShake(kingPiece)
+                            end
+                        end
+                    end
+                end
+                ParticleEffects.screenFlash(Color3.fromRGB(255, 50, 50), 0.5)
+            end
+        end
     end
 
     -- Handle gesture received
