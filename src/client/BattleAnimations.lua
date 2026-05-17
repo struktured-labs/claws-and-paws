@@ -5,9 +5,255 @@
 ]]
 
 local TweenService = game:GetService("TweenService")
+local RunService = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Constants = require(ReplicatedStorage:WaitForChild("Shared")).Constants
 local BattleAnimations = {}
+
+-- ==========================================
+-- HELPERS
+-- ==========================================
+
+local function getMainPart(piece)
+    if not piece then return nil end
+    if piece:IsA("Model") then
+        return piece.PrimaryPart or piece:FindFirstChildWhichIsA("BasePart")
+    end
+    return piece:IsA("BasePart") and piece or nil
+end
+
+local function flashPart(part, color, duration)
+    if not part or not part:IsA("BasePart") then return end
+    local origColor, origMat = part.Color, part.Material
+    part.Color = color
+    part.Material = Enum.Material.Neon
+    task.delay(duration, function()
+        if part and part.Parent then
+            part.Color = origColor
+            part.Material = origMat
+        end
+    end)
+end
+
+local function shakePart(part, intensity, duration)
+    if not part then return end
+    local originalPos = part.Position
+    local elapsed = 0
+    local conn
+    conn = RunService.Heartbeat:Connect(function(dt)
+        elapsed = elapsed + dt
+        if elapsed >= duration then
+            if part and part.Parent then part.Position = originalPos end
+            conn:Disconnect()
+            return
+        end
+        local decay = 1 - (elapsed / duration)
+        if part and part.Parent then
+            part.Position = originalPos + Vector3.new(
+                (math.random() - 0.5) * 2 * intensity * decay,
+                (math.random() - 0.5) * intensity * decay * 0.5,
+                (math.random() - 0.5) * 2 * intensity * decay
+            )
+        end
+    end)
+end
+
+local function spawnCombatText(position, text, color)
+    local host = Instance.new("Part")
+    host.Size = Vector3.new(0.1, 0.1, 0.1)
+    host.Position = position + Vector3.new(0, 5, 0)
+    host.Anchored = true
+    host.CanCollide = false
+    host.Transparency = 1
+    host.Parent = workspace
+
+    local billboard = Instance.new("BillboardGui")
+    billboard.Size = UDim2.new(0, 220, 0, 80)
+    billboard.AlwaysOnTop = true
+    billboard.Parent = host
+
+    local label = Instance.new("TextLabel")
+    label.Size = UDim2.new(1, 0, 1, 0)
+    label.BackgroundTransparency = 1
+    label.Text = text
+    label.TextColor3 = color or Color3.fromRGB(255, 255, 100)
+    label.TextStrokeTransparency = 0
+    label.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+    label.Font = Enum.Font.FredokaOne
+    label.TextScaled = true
+    label.TextTransparency = 1
+    label.Parent = billboard
+
+    TweenService:Create(label, TweenInfo.new(0.1), {TextTransparency = 0}):Play()
+    task.spawn(function()
+        task.wait(0.1)
+        TweenService:Create(host, TweenInfo.new(0.8, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+            Position = host.Position + Vector3.new(0, 8, 0)
+        }):Play()
+        TweenService:Create(label, TweenInfo.new(0.8, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+            TextTransparency = 1
+        }).Completed:Connect(function() host:Destroy() end)
+        TweenService:Create(label, TweenInfo.new(0.8, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {TextTransparency = 1}):Play()
+    end)
+end
+
+local function spawnImpactRing(position, color)
+    local ring = Instance.new("Part")
+    ring.Size = Vector3.new(2, 0.2, 2)
+    ring.Position = position + Vector3.new(0, 0.5, 0)
+    ring.Anchored = true
+    ring.CanCollide = false
+    ring.Color = color or Color3.fromRGB(255, 200, 50)
+    ring.Material = Enum.Material.Neon
+    ring.Shape = Enum.PartType.Cylinder
+    ring.Orientation = Vector3.new(0, 0, 90)
+    ring.Parent = workspace
+    TweenService:Create(ring, TweenInfo.new(0.4, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+        Size = Vector3.new(0.1, 16, 16),
+        Transparency = 1,
+    }):Play()
+    task.delay(0.5, function() if ring and ring.Parent then ring:Destroy() end end)
+end
+
+-- ==========================================
+-- PER-PIECE CAPTURE ANIMATIONS
+-- ==========================================
+
+local function knightCapture(piece, fromPos, toPos, onComplete)
+    local part = getMainPart(piece)
+    if not part then if onComplete then onComplete() end return end
+    flashPart(part, Color3.fromRGB(255, 255, 0), 0.15)
+    local peakPos = Vector3.new((fromPos.X+toPos.X)/2, math.max(fromPos.Y,toPos.Y)+14, (fromPos.Z+toPos.Z)/2)
+    task.delay(0.1, function()
+        local up = TweenService:Create(part, TweenInfo.new(0.22, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Position=peakPos, Orientation=Vector3.new(360,0,0)})
+        local down = TweenService:Create(part, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {Position=toPos})
+        up.Completed:Connect(function() down:Play() end)
+        down.Completed:Connect(function()
+            part.Orientation = Vector3.new(0,0,0)
+            flashPart(part, Color3.fromRGB(200,255,255), 0.2)
+            spawnImpactRing(toPos, Color3.fromRGB(100,200,255))
+            shakePart(part, 1.2, 0.4)
+            spawnCombatText(toPos, "ZAP!", Color3.fromRGB(100,220,255))
+            if onComplete then onComplete() end
+        end)
+        up:Play()
+    end)
+end
+
+local function queenCapture(piece, fromPos, toPos, onComplete)
+    local part = getMainPart(piece)
+    if not part then if onComplete then onComplete() end return end
+    flashPart(part, Color3.fromRGB(255,50,200), 0.1)
+    local overshoot = toPos + (toPos-fromPos).Unit * 3
+    local pullback  = toPos + (fromPos-toPos).Unit * 2
+    local d1 = TweenService:Create(part, TweenInfo.new(0.1, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {Position=overshoot})
+    local d2 = TweenService:Create(part, TweenInfo.new(0.08, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Position=pullback})
+    local d3 = TweenService:Create(part, TweenInfo.new(0.1, Enum.EasingStyle.Quint, Enum.EasingDirection.In), {Position=toPos})
+    d1.Completed:Connect(function()
+        flashPart(part, Color3.fromRGB(255,150,255), 0.08)
+        spawnCombatText(overshoot, "SLASH!", Color3.fromRGB(255,100,255))
+        d2:Play()
+    end)
+    d2.Completed:Connect(function() d3:Play() end)
+    d3.Completed:Connect(function()
+        flashPart(part, Color3.fromRGB(255,255,255), 0.2)
+        spawnImpactRing(toPos, Color3.fromRGB(255,50,200))
+        shakePart(part, 1.0, 0.35)
+        spawnCombatText(toPos, "COMBO!", Color3.fromRGB(255,50,200))
+        if onComplete then onComplete() end
+    end)
+    d1:Play()
+end
+
+local function rookCapture(piece, fromPos, toPos, onComplete)
+    local part = getMainPart(piece)
+    if not part then if onComplete then onComplete() end return end
+    local windupPos = fromPos + (fromPos-toPos).Unit * 2.5
+    local overshoot = toPos + (toPos-fromPos).Unit * 2
+    local windup = TweenService:Create(part, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Position=windupPos, Size=part.Size*Vector3.new(1.3,0.8,1.3)})
+    local charge = TweenService:Create(part, TweenInfo.new(0.18, Enum.EasingStyle.Quint, Enum.EasingDirection.In), {Position=overshoot, Size=part.Size*Vector3.new(0.7,1.3,0.7)})
+    local settle = TweenService:Create(part, TweenInfo.new(0.12, Enum.EasingStyle.Bounce, Enum.EasingDirection.Out), {Position=toPos, Size=part.Size})
+    windup.Completed:Connect(function() charge:Play() end)
+    charge.Completed:Connect(function()
+        spawnImpactRing(overshoot, Color3.fromRGB(255,100,50))
+        spawnCombatText(overshoot, "SMASH!", Color3.fromRGB(255,120,50))
+        settle:Play()
+    end)
+    settle.Completed:Connect(function()
+        shakePart(part, 1.5, 0.4)
+        if onComplete then onComplete() end
+    end)
+    windup:Play()
+end
+
+local function bishopCapture(piece, fromPos, toPos, onComplete)
+    local part = getMainPart(piece)
+    if not part then if onComplete then onComplete() end return end
+    local ghost = part:Clone()
+    ghost.Parent = workspace
+    ghost.Anchored = true
+    ghost.CanCollide = false
+    task.spawn(function()
+        for i = 1, 8 do
+            if ghost and ghost.Parent then ghost.Transparency = i/8 end
+            task.wait(0.05)
+        end
+        if ghost and ghost.Parent then ghost:Destroy() end
+    end)
+    local shrink = TweenService:Create(part, TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+        Size=part.Size*0.01, Transparency=1, Orientation=Vector3.new(0,540,0)
+    })
+    shrink.Completed:Connect(function()
+        part.Position = toPos
+        part.Orientation = Vector3.new(0,0,0)
+        local grow = TweenService:Create(part, TweenInfo.new(0.2, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+            Size=Vector3.new(5,4.5,6), Transparency=0
+        })
+        grow.Completed:Connect(function()
+            spawnImpactRing(toPos, Color3.fromRGB(150,50,255))
+            spawnCombatText(toPos, "BLINK!", Color3.fromRGB(180,100,255))
+            if onComplete then onComplete() end
+        end)
+        grow:Play()
+    end)
+    shrink:Play()
+end
+
+local function kingCapture(piece, fromPos, toPos, onComplete)
+    local part = getMainPart(piece)
+    if not part then if onComplete then onComplete() end return end
+    local windupPos = fromPos + (fromPos-toPos).Unit * 1.5
+    local overshoot = toPos + (toPos-fromPos).Unit * 1.5
+    local windup = TweenService:Create(part, TweenInfo.new(0.3, Enum.EasingStyle.Sine, Enum.EasingDirection.Out), {Position=windupPos})
+    local lunge  = TweenService:Create(part, TweenInfo.new(0.2, Enum.EasingStyle.Quint, Enum.EasingDirection.In), {Position=overshoot, Orientation=Vector3.new(0,0,30)})
+    local settle = TweenService:Create(part, TweenInfo.new(0.25, Enum.EasingStyle.Elastic, Enum.EasingDirection.Out), {Position=toPos, Orientation=Vector3.new(0,0,0)})
+    windup.Completed:Connect(function() lunge:Play() end)
+    lunge.Completed:Connect(function()
+        flashPart(part, Color3.fromRGB(255,215,0), 0.25)
+        spawnImpactRing(overshoot, Color3.fromRGB(255,215,0))
+        shakePart(part, 1.0, 0.35)
+        spawnCombatText(toPos, "ROYAL STRIKE!", Color3.fromRGB(255,215,0))
+        settle:Play()
+    end)
+    settle.Completed:Connect(function() if onComplete then onComplete() end end)
+    windup:Play()
+end
+
+local function pawnCapture(piece, fromPos, toPos, onComplete)
+    local part = getMainPart(piece)
+    if not part then if onComplete then onComplete() end return end
+    local sideOffset = Vector3.new((toPos.Z-fromPos.Z)*0.4, 3, -(toPos.X-fromPos.X)*0.4)
+    local mid = Vector3.new((fromPos.X+toPos.X)/2+sideOffset.X, fromPos.Y+3, (fromPos.Z+toPos.Z)/2+sideOffset.Z)
+    local hop    = TweenService:Create(part, TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Position=mid, Orientation=Vector3.new(0,45,0)})
+    local strike = TweenService:Create(part, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {Position=toPos, Orientation=Vector3.new(0,0,0)})
+    hop.Completed:Connect(function() strike:Play() end)
+    strike.Completed:Connect(function()
+        flashPart(part, Color3.fromRGB(255,200,100), 0.15)
+        spawnCombatText(toPos, "SWIPE!", Color3.fromRGB(255,200,100))
+        if onComplete then onComplete() end
+    end)
+    hop:Play()
+end
 
 -- Track active fight so it can be skipped
 local activeFight = nil  -- {cancelled = false, tweens = {}, onComplete = function}
@@ -526,8 +772,8 @@ function BattleAnimations.pawnStep(piece, fromPos, toPos, onComplete)
     upTween:Play()
 end
 
--- Smart move selector - picks animation based on piece type
-function BattleAnimations.smartMove(piece, fromPos, toPos, pieceType, onComplete)
+-- Smart move selector - picks animation based on piece type and whether it's a capture
+function BattleAnimations.smartMove(piece, fromPos, toPos, pieceType, isCapture, onComplete)
     if not piece then
         if onComplete then onComplete() end
         return
@@ -537,20 +783,40 @@ function BattleAnimations.smartMove(piece, fromPos, toPos, pieceType, onComplete
     local Shared = require(ReplicatedStorage.Shared)
     local Constants = Shared.Constants
 
-    if pieceType == Constants.PieceType.KNIGHT then
-        BattleAnimations.knightHop(piece, fromPos, toPos, onComplete)
-    elseif pieceType == Constants.PieceType.KING then
-        BattleAnimations.kingWalk(piece, fromPos, toPos, onComplete)
-    elseif pieceType == Constants.PieceType.QUEEN then
-        BattleAnimations.queenDash(piece, fromPos, toPos, onComplete)
-    elseif pieceType == Constants.PieceType.ROOK then
-        BattleAnimations.rookSlide(piece, fromPos, toPos, onComplete)
-    elseif pieceType == Constants.PieceType.BISHOP then
-        BattleAnimations.bishopGlide(piece, fromPos, toPos, onComplete)
-    elseif pieceType == Constants.PieceType.PAWN then
-        BattleAnimations.pawnStep(piece, fromPos, toPos, onComplete)
+    if isCapture then
+        -- Route to per-piece dramatic capture animations
+        if pieceType == Constants.PieceType.KNIGHT then
+            knightCapture(piece, fromPos, toPos, onComplete)
+        elseif pieceType == Constants.PieceType.QUEEN then
+            queenCapture(piece, fromPos, toPos, onComplete)
+        elseif pieceType == Constants.PieceType.ROOK then
+            rookCapture(piece, fromPos, toPos, onComplete)
+        elseif pieceType == Constants.PieceType.BISHOP then
+            bishopCapture(piece, fromPos, toPos, onComplete)
+        elseif pieceType == Constants.PieceType.KING then
+            kingCapture(piece, fromPos, toPos, onComplete)
+        elseif pieceType == Constants.PieceType.PAWN then
+            pawnCapture(piece, fromPos, toPos, onComplete)
+        else
+            BattleAnimations.pounceCapture(piece, fromPos, toPos, onComplete)
+        end
     else
-        BattleAnimations.slideMove(piece, fromPos, toPos, onComplete)
+        -- Regular move animations
+        if pieceType == Constants.PieceType.KNIGHT then
+            BattleAnimations.knightHop(piece, fromPos, toPos, onComplete)
+        elseif pieceType == Constants.PieceType.KING then
+            BattleAnimations.kingWalk(piece, fromPos, toPos, onComplete)
+        elseif pieceType == Constants.PieceType.QUEEN then
+            BattleAnimations.queenDash(piece, fromPos, toPos, onComplete)
+        elseif pieceType == Constants.PieceType.ROOK then
+            BattleAnimations.rookSlide(piece, fromPos, toPos, onComplete)
+        elseif pieceType == Constants.PieceType.BISHOP then
+            BattleAnimations.bishopGlide(piece, fromPos, toPos, onComplete)
+        elseif pieceType == Constants.PieceType.PAWN then
+            BattleAnimations.pawnStep(piece, fromPos, toPos, onComplete)
+        else
+            BattleAnimations.slideMove(piece, fromPos, toPos, onComplete)
+        end
     end
 end
 

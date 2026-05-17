@@ -30,75 +30,9 @@ function ChessEngine.new()
         [Constants.Color.BLACK] = {},
     }
     self.halfMoveClock = 0  -- For 50-move rule
-    self.positionHistory = {} -- For threefold repetition (hash → count)
+    self.positionHistory = {} -- For threefold repetition
 
     return self
-end
-
--- Generate a simple hash of the current board position + turn
-function ChessEngine:getPositionHash()
-    local parts = {}
-    for row = 1, Constants.BOARD_SIZE do
-        for col = 1, Constants.BOARD_SIZE do
-            local piece = self.board[row][col]
-            if piece then
-                -- Encode: row, col, type, color as a compact string segment
-                table.insert(parts, string.format("%d%d%d%d", row, col, piece.type, piece.color))
-            end
-        end
-    end
-    -- Include whose turn it is
-    table.insert(parts, tostring(self.currentTurn))
-    return table.concat(parts, ",")
-end
-
--- Record current position and return how many times it has occurred
-function ChessEngine:recordPosition()
-    local hash = self:getPositionHash()
-    self.positionHistory[hash] = (self.positionHistory[hash] or 0) + 1
-    return self.positionHistory[hash]
-end
-
--- Check for insufficient material (automatic draw)
-function ChessEngine:hasInsufficientMaterial()
-    local whitePieces = {}
-    local blackPieces = {}
-
-    for row = 1, Constants.BOARD_SIZE do
-        for col = 1, Constants.BOARD_SIZE do
-            local piece = self.board[row][col]
-            if piece then
-                if piece.color == Constants.Color.WHITE then
-                    table.insert(whitePieces, piece.type)
-                else
-                    table.insert(blackPieces, piece.type)
-                end
-            end
-        end
-    end
-
-    -- King vs King
-    if #whitePieces == 1 and #blackPieces == 1 then
-        return true
-    end
-
-    -- King + minor piece vs King
-    local function isKingPlusMinor(pieces)
-        if #pieces ~= 2 then return false end
-        for _, t in ipairs(pieces) do
-            if t == Constants.PieceType.BISHOP or t == Constants.PieceType.KNIGHT then
-                return true
-            end
-        end
-        return false
-    end
-
-    if (#whitePieces == 1 and isKingPlusMinor(blackPieces))
-        or (#blackPieces == 1 and isKingPlusMinor(whitePieces)) then
-        return true
-    end
-
-    return false
 end
 
 -- Initialize board with Fischer Random setup
@@ -132,9 +66,6 @@ function ChessEngine:setupBoard(seed)
 
     self.gameState = Constants.GameState.IN_PROGRESS
     self.currentTurn = Constants.Color.WHITE
-
-    -- Record initial position for threefold repetition detection
-    self:recordPosition()
 end
 
 -- Generate Fischer Random arrangement for 6 pieces
@@ -212,24 +143,19 @@ end
 function ChessEngine:getValidMoves(row, col)
     local piece = self:getPiece(row, col)
     if not piece then
-        if Constants.DEBUG then print("🐱 [ENGINE DEBUG] No piece at [" .. row .. "," .. col .. "]") end
         return {}
     end
 
     local moves = self:getPseudoLegalMoves(row, col)
-    if Constants.DEBUG then print("🐱 [ENGINE DEBUG] getPseudoLegalMoves returned " .. #moves .. " moves for piece at [" .. row .. "," .. col .. "]") end
     local validMoves = {}
 
     -- Filter out moves that leave king in check
-    for i, move in ipairs(moves) do
-        local isLegal = self:isMoveLegal(row, col, move.row, move.col)
-        if Constants.DEBUG then print("🐱 [ENGINE DEBUG] Move " .. i .. " to [" .. move.row .. "," .. move.col .. "] legal: " .. tostring(isLegal)) end
-        if isLegal then
+    for _, move in ipairs(moves) do
+        if self:isMoveLegal(row, col, move.row, move.col) then
             table.insert(validMoves, move)
         end
     end
 
-    if Constants.DEBUG then print("🐱 [ENGINE DEBUG] Returning " .. #validMoves .. " valid moves") end
     return validMoves
 end
 
@@ -278,12 +204,12 @@ function ChessEngine:getPseudoLegalMoves(row, col)
     return moves
 end
 
--- Pawn moves
+-- Pawn moves (6x6 variant: pawns move only 1 square forward)
 function ChessEngine:getPawnMoves(row, col, color)
     local moves = {}
     local direction = (color == Constants.Color.WHITE) and 1 or -1
 
-    -- Forward move (only 1 square in 6x6 chess - no double move)
+    -- Forward move (only 1 square)
     local newRow = row + direction
     if self:isOnBoard(newRow, col) and not self:getPiece(newRow, col) then
         table.insert(moves, {row = newRow, col = col})
@@ -299,8 +225,6 @@ function ChessEngine:getPawnMoves(row, col, color)
             end
         end
     end
-
-    -- Note: No en passant in 6x6 chess variant
 
     return moves
 end
@@ -440,7 +364,6 @@ end
 function ChessEngine:isMoveLegal(fromRow, fromCol, toRow, toCol)
     local piece = self:getPiece(fromRow, fromCol)
     if not piece then
-        if Constants.DEBUG then print("🐱 [ENGINE DEBUG] isMoveLegal: no piece at [" .. fromRow .. "," .. fromCol .. "]") end
         return false
     end
 
@@ -451,7 +374,6 @@ function ChessEngine:isMoveLegal(fromRow, fromCol, toRow, toCol)
 
     -- Check if own king is in check
     local inCheck = self:isInCheck(piece.color)
-    if Constants.DEBUG then print("🐱 [ENGINE DEBUG] After move [" .. fromRow .. "," .. fromCol .. "]→[" .. toRow .. "," .. toCol .. "], inCheck=" .. tostring(inCheck)) end
 
     -- Undo move
     self.board[fromRow][fromCol] = piece
@@ -462,18 +384,6 @@ end
 
 -- Make a move
 function ChessEngine:makeMove(fromRow, fromCol, toRow, toCol, promotionPiece)
-    -- COUNT PIECES BEFORE MOVE
-    local pieceCountBefore = 0
-    for r = 1, Constants.BOARD_SIZE do
-        for c = 1, Constants.BOARD_SIZE do
-            if self.board[r] and self.board[r][c] then
-                pieceCountBefore = pieceCountBefore + 1
-            end
-        end
-    end
-    if Constants.DEBUG then print(string.format("🐱 [ENGINE] BEFORE move [%d,%d]→[%d,%d]: %d total pieces on board",
-        fromRow, fromCol, toRow, toCol, pieceCountBefore)) end
-
     local piece = self:getPiece(fromRow, fromCol)
     if not piece then
         return false, "No piece at source"
@@ -509,7 +419,6 @@ function ChessEngine:makeMove(fromRow, fromCol, toRow, toCol, promotionPiece)
     -- Handle capture
     local capturedPiece = self.board[toRow][toCol]
     if capturedPiece then
-        if Constants.DEBUG then print(string.format("🐱 [ENGINE] Capturing %s at [%d,%d]", capturedPiece.type, toRow, toCol)) end
         table.insert(self.capturedPieces[capturedPiece.color], capturedPiece)
         self.halfMoveClock = 0
     elseif piece.type == Constants.PieceType.PAWN then
@@ -519,7 +428,6 @@ function ChessEngine:makeMove(fromRow, fromCol, toRow, toCol, promotionPiece)
     end
 
     -- Make the move
-    if Constants.DEBUG then print(string.format("🐱 [ENGINE] Moving piece from [%d,%d] to [%d,%d]", fromRow, fromCol, toRow, toCol)) end
     self.board[toRow][toCol] = piece
     self.board[fromRow][fromCol] = nil
     piece.hasMoved = true
@@ -527,45 +435,15 @@ function ChessEngine:makeMove(fromRow, fromCol, toRow, toCol, promotionPiece)
     -- Handle pawn promotion
     local promotionRow = (piece.color == Constants.Color.WHITE) and Constants.BOARD_SIZE or 1
     if piece.type == Constants.PieceType.PAWN and toRow == promotionRow then
-        -- Validate promotion piece (only Q/R/B/N allowed)
-        local validPromotions = {
-            [Constants.PieceType.QUEEN] = true,
-            [Constants.PieceType.ROOK] = true,
-            [Constants.PieceType.BISHOP] = true,
-            [Constants.PieceType.KNIGHT] = true,
-        }
-        local newType = (promotionPiece and validPromotions[promotionPiece]) and promotionPiece or Constants.PieceType.QUEEN
+        local newType = promotionPiece or Constants.PieceType.QUEEN
         piece.type = newType
         moveRecord.promotion = newType
     end
 
     table.insert(self.moveHistory, moveRecord)
 
-    -- COUNT PIECES AFTER MOVE
-    local pieceCountAfter = 0
-    for r = 1, Constants.BOARD_SIZE do
-        for c = 1, Constants.BOARD_SIZE do
-            if self.board[r] and self.board[r][c] then
-                pieceCountAfter = pieceCountAfter + 1
-            end
-        end
-    end
-    if Constants.DEBUG then print(string.format("🐱 [ENGINE] AFTER move: %d total pieces on board (should be %d)",
-        pieceCountAfter, capturedPiece and (pieceCountBefore - 1) or pieceCountBefore)) end
-
-    if capturedPiece and pieceCountAfter ~= (pieceCountBefore - 1) then
-        if Constants.DEBUG then warn(string.format("🐱 [ENGINE] ⚠️ PIECE MISMATCH! Expected %d after capture, got %d",
-            pieceCountBefore - 1, pieceCountAfter)) end
-    elseif not capturedPiece and pieceCountAfter ~= pieceCountBefore then
-        if Constants.DEBUG then warn(string.format("🐱 [ENGINE] ⚠️ PIECE MISMATCH! Expected %d after move, got %d",
-            pieceCountBefore, pieceCountAfter)) end
-    end
-
     -- Switch turn
     self.currentTurn = (self.currentTurn == Constants.Color.WHITE) and Constants.Color.BLACK or Constants.Color.WHITE
-
-    -- Record position for threefold repetition detection
-    self:recordPosition()
 
     -- Check game end conditions
     self:checkGameEnd()
@@ -599,34 +477,15 @@ function ChessEngine:checkGameEnd()
             self.gameState = (opponent == Constants.Color.WHITE)
                 and Constants.GameState.BLACK_WIN
                 or Constants.GameState.WHITE_WIN
-            self.endReason = "checkmate"
         else
             -- Stalemate
             self.gameState = Constants.GameState.STALEMATE
-            self.endReason = "stalemate"
         end
-        return
     end
 
-    -- 50-move rule (25 full moves = 50 half-moves on 6x6)
+    -- 50-move rule (25 moves per side on 6x6 might be more appropriate)
     if self.halfMoveClock >= 50 then
         self.gameState = Constants.GameState.DRAW
-        self.endReason = "50-move rule"
-        return
-    end
-
-    -- Threefold repetition
-    local hash = self:getPositionHash()
-    if (self.positionHistory[hash] or 0) >= 3 then
-        self.gameState = Constants.GameState.DRAW
-        self.endReason = "repetition"
-        return
-    end
-
-    -- Insufficient material
-    if self:hasInsufficientMaterial() then
-        self.gameState = Constants.GameState.DRAW
-        self.endReason = "insufficient material"
     end
 end
 
@@ -655,77 +514,51 @@ end
 
 -- Serialize board state for network sync
 function ChessEngine:serialize()
-    -- CRITICAL FIX: Don't use 2D arrays for network transmission!
-    -- Roblox's RemoteFunction can't handle sparse numeric arrays and will drop entire rows.
-    -- Instead, use a FLAT ARRAY with explicit row/col coordinates.
-
-    local pieces = {}  -- Flat array: {{row=1,col=1,type=...,color=...}, ...}
+    local data = {
+        board = {},
+        currentTurn = self.currentTurn,
+        gameState = self.gameState,
+        moveHistory = self.moveHistory,
+        halfMoveClock = self.halfMoveClock,
+    }
 
     for row = 1, Constants.BOARD_SIZE do
+        data.board[row] = {}
         for col = 1, Constants.BOARD_SIZE do
             local piece = self.board[row][col]
             if piece then
-                table.insert(pieces, {
-                    row = row,
-                    col = col,
+                data.board[row][col] = {
                     type = piece.type,
                     color = piece.color,
                     hasMoved = piece.hasMoved,
-                })
+                }
             end
         end
     end
 
-    if Constants.DEBUG then print(string.format("🐱 [ENGINE] serialize(): %d pieces serialized as flat array", #pieces)) end
-
-    -- Extract last move for highlighting
-    local lastMove = nil
-    if #self.moveHistory > 0 then
-        local last = self.moveHistory[#self.moveHistory]
-        lastMove = {
-            fromRow = last.from.row,
-            fromCol = last.from.col,
-            toRow = last.to.row,
-            toCol = last.to.col,
-        }
-    end
-
-    local data = {
-        pieces = pieces,  -- Flat array instead of 2D board
-        currentTurn = self.currentTurn,
-        gameState = self.gameState,
-        endReason = self.endReason,
-        moveHistory = self.moveHistory,
-        halfMoveClock = self.halfMoveClock,
-        lastMove = lastMove,
-    }
-
     return data
 end
 
--- Deserialize board state (from flat array format)
+-- Deserialize board state
 function ChessEngine:deserialize(data)
     self.currentTurn = data.currentTurn
     self.gameState = data.gameState
     self.moveHistory = data.moveHistory or {}
     self.halfMoveClock = data.halfMoveClock or 0
 
-    -- Clear board
     for row = 1, Constants.BOARD_SIZE do
         self.board[row] = {}
         for col = 1, Constants.BOARD_SIZE do
-            self.board[row][col] = nil
-        end
-    end
-
-    -- Rebuild 2D board from flat array
-    if data.pieces then
-        for _, pieceData in ipairs(data.pieces) do
-            self.board[pieceData.row][pieceData.col] = {
-                type = pieceData.type,
-                color = pieceData.color,
-                hasMoved = pieceData.hasMoved,
-            }
+            local pieceData = data.board[row] and data.board[row][col]
+            if pieceData then
+                self.board[row][col] = {
+                    type = pieceData.type,
+                    color = pieceData.color,
+                    hasMoved = pieceData.hasMoved,
+                }
+            else
+                self.board[row][col] = nil
+            end
         end
     end
 end

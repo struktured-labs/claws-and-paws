@@ -1,49 +1,76 @@
 --[[
     Claws & Paws - Camera Controller
     Positions camera for optimal board viewing
-    Supports mouse (right-click drag, scroll) and touch (one-finger drag, pinch zoom)
 ]]
 
 local RunService = game:GetService("RunService")
 local Players = game:GetService("Players")
-local UserInputService = game:GetService("UserInputService")
 local LocalPlayer = Players.LocalPlayer
 
 local CameraController = {}
 
--- Camera state
-local currentAngle = 0
-local currentHeight = 120
-local RADIUS = 110
-local MIN_HEIGHT = 80
-local MAX_HEIGHT = 180
+-- Configuration
+CameraController.boardView = nil -- Will be set from Constants
 
-local function updateCameraPosition()
-    local camera = workspace.CurrentCamera
-    local x = math.sin(currentAngle) * RADIUS
-    local z = math.cos(currentAngle) * RADIUS - RADIUS
-    local pos = Vector3.new(x, currentHeight, z)
-    camera.CFrame = CFrame.new(pos, Vector3.new(0, 0, 0))
-end
-
--- Set up camera for chess board viewing
-function CameraController.setupGameCamera()
+-- Set up camera for chess board viewing (uses current board view setting)
+function CameraController.setupGameCamera(boardView)
     local camera = workspace.CurrentCamera
     camera.CameraType = Enum.CameraType.Scriptable
-    currentAngle = 0
-    currentHeight = 120
-    updateCameraPosition()
+
+    -- Use provided view or fall back to stored view
+    if boardView then
+        CameraController.boardView = boardView
+    end
+
+    -- Load Constants for board view types
+    local ReplicatedStorage = game:GetService("ReplicatedStorage")
+    local Shared = require(ReplicatedStorage.Shared)
+    local Constants = Shared.Constants
+
+    local currentView = CameraController.boardView or Constants.BoardView.PERSPECTIVE_3D
+
+    -- Board center is at (0, 0, 0), size is 6x6 squares at 8 studs each = 48 studs
+    local cameraPosition
+    local lookAt = Vector3.new(0, 0, 0) -- Board center
+
+    if currentView == Constants.BoardView.TOP_DOWN_2D then
+        -- Pure top-down 2D view (directly above)
+        cameraPosition = Vector3.new(0, 80, 0)
+    elseif currentView == Constants.BoardView.SIDE_VIEW then
+        -- Side perspective view
+        cameraPosition = Vector3.new(60, 30, 0)
+    else
+        -- Default: Perspective 3D (angled)
+        cameraPosition = Vector3.new(0, 60, -50)
+    end
+
+    camera.CFrame = CFrame.new(cameraPosition, lookAt)
+
     return camera
 end
 
--- Enable camera rotation (mouse + touch)
+-- Set board view and update camera
+function CameraController.setBoardView(boardView)
+    CameraController.boardView = boardView
+    CameraController.setupGameCamera()
+end
+
+-- Get current board view
+function CameraController.getBoardView()
+    return CameraController.boardView
+end
+
+-- Allow camera rotation with right mouse
 function CameraController.enableCameraRotation()
-    -- Mouse controls
+    local camera = workspace.CurrentCamera
+    local UserInputService = game:GetService("UserInputService")
+
     local rotating = false
     local lastMousePos = nil
+    local currentAngle = 0
+    local currentHeight = 60 -- Match new camera height
 
-    UserInputService.InputBegan:Connect(function(input, processed)
-        if processed then return end
+    UserInputService.InputBegan:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton2 then
             rotating = true
             lastMousePos = input.Position
@@ -57,77 +84,39 @@ function CameraController.enableCameraRotation()
     end)
 
     UserInputService.InputChanged:Connect(function(input)
-        -- Mouse drag rotation
         if rotating and input.UserInputType == Enum.UserInputType.MouseMovement then
             if lastMousePos then
                 local delta = input.Position - lastMousePos
                 currentAngle = currentAngle + delta.X * 0.01
-                updateCameraPosition()
+
+                -- Update camera position
+                local radius = 50 -- Bigger radius for bigger board
+                local x = math.sin(currentAngle) * radius
+                local z = math.cos(currentAngle) * radius
+                local pos = Vector3.new(x, currentHeight, z)
+
+                camera.CFrame = CFrame.new(pos, Vector3.new(0, 0, 0))
+
                 lastMousePos = input.Position
             end
         end
 
-        -- Mouse wheel zoom
+        -- Mouse wheel for zoom
         if input.UserInputType == Enum.UserInputType.MouseWheel then
-            currentHeight = math.clamp(currentHeight - input.Position.Z * 8, MIN_HEIGHT, MAX_HEIGHT)
-            updateCameraPosition()
+            currentHeight = math.clamp(currentHeight - input.Position.Z * 5, 40, 100)
+
+            local radius = 50 -- Match new radius
+            local x = math.sin(currentAngle) * radius
+            local z = math.cos(currentAngle) * radius
+            local pos = Vector3.new(x, currentHeight, z)
+
+            camera.CFrame = CFrame.new(pos, Vector3.new(0, 0, 0))
         end
-    end)
-
-    -- Touch controls
-    local activeTouches = {}
-
-    UserInputService.TouchStarted:Connect(function(input, processed)
-        if processed then return end
-        activeTouches[input] = input.Position
-    end)
-
-    UserInputService.TouchEnded:Connect(function(input)
-        activeTouches[input] = nil
-    end)
-
-    UserInputService.TouchMoved:Connect(function(input, processed)
-        if processed then return end
-        local prevPos = activeTouches[input]
-        if not prevPos then return end
-
-        local touchCount = 0
-        for _ in pairs(activeTouches) do touchCount = touchCount + 1 end
-
-        if touchCount == 1 then
-            -- Single finger: rotate camera (only if moved significantly)
-            local delta = input.Position - prevPos
-            if math.abs(delta.X) > 1 then
-                currentAngle = currentAngle + delta.X * 0.005
-                updateCameraPosition()
-            end
-        elseif touchCount == 2 then
-            -- Two fingers: pinch to zoom
-            local otherInput, otherPos
-            for inp, pos in pairs(activeTouches) do
-                if inp ~= input then
-                    otherInput = inp
-                    otherPos = pos
-                    break
-                end
-            end
-            if otherPos then
-                local prevDist = (prevPos - otherPos).Magnitude
-                local newDist = (input.Position - otherPos).Magnitude
-                local zoomDelta = (newDist - prevDist) * 0.3
-                currentHeight = math.clamp(currentHeight - zoomDelta, MIN_HEIGHT, MAX_HEIGHT)
-                updateCameraPosition()
-            end
-        end
-
-        activeTouches[input] = input.Position
     end)
 end
 
 -- Reset camera to default position
 function CameraController.resetCamera()
-    currentAngle = 0
-    currentHeight = 120
     CameraController.setupGameCamera()
 end
 
